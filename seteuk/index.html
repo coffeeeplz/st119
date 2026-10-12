@@ -164,9 +164,9 @@ th{background:#f1f3f5;position:sticky;top:0}
       API 키 <input id="aikey" type="password" style="width:260px">
       <button class="b" onclick="loadModels()">모델 목록 불러오기</button>
     </div>
-    <div class="row" style="margin-top:6px">모델 <input id="aimodel" list="aimodels" style="width:260px" placeholder="모델 목록을 불러오세요"><datalist id="aimodels"></datalist>
+    <div class="row" style="margin-top:6px">모델 <select id="aimodelsel" style="max-width:380px"></select><input id="aimodel" class="hide" placeholder="모델 이름 직접 입력" style="width:220px">
       <button class="b" onclick="testAI()">연결 테스트</button><span class="sub" id="aimsg"></span></div>
-    <p class="sub">API 키는 이 브라우저에만 저장되며 작업 파일·백업에는 포함되지 않습니다. AI에는 학생 이름을 '학생'으로 바꾼 문장만 전송됩니다. 지시문에 기재요령(기재 원칙·대체표현)이 함께 전달됩니다.</p>
+    <p class="sub">⭐추천: 빠르고 안정적인 모델 · (미리보기): 시험 버전이라 느리거나 막힐 수 있음 · (느림): 깊게 생각하는 모델 · ✅: 연결 테스트 성공. 응답이 60초 넘게 없으면 자동으로 중단됩니다.<br>API 키는 이 브라우저에만 저장되며 작업 파일·백업에는 포함되지 않습니다. AI에는 학생 이름을 '학생'으로 바꾼 문장만 전송됩니다. 지시문에 기재요령(기재 원칙·대체표현)이 함께 전달됩니다.</p>
   </div>
   <div class="card">
     <div class="row"><button class="b" onclick="resetEdits()">학생별 수정 내용 모두 초기화</button><button class="b" onclick="resetAll()">전체 초기화 (문장 은행 제외)</button></div>
@@ -530,35 +530,48 @@ const RULES=()=>`[학교생활기록부 기재요령]
 - 문장 끝은 '~함.', '~임.', '~보임.' 같은 명사형 종결을 쓸 것.
 - 학생 이름, 학교 밖 대회·기관명, 영어 표기, 특수문자, 따옴표를 쓰지 말 것.
 - 다음 기재 유의어는 오른쪽 대체표현으로 바꿀 것: ${substPrompt()}`;
-async function callAI(prompt,maxTokens=2000){const{provider:p,key,model}=S.cfg.ai;
+async function fetchT(url,opt={},ms=60000){const c=new AbortController(),t=setTimeout(()=>c.abort(),ms);
+  try{return await fetch(url,{...opt,signal:c.signal})}catch(e){if(e.name==='AbortError')throw new Error(`응답 없음(${ms/1000}초 초과). 다른 모델을 골라 보세요.`);throw new Error('네트워크 오류: '+e.message)}finally{clearTimeout(t)}}
+async function timed(el,label,fn){const t0=Date.now(),iv=setInterval(()=>{el.textContent=`${label} ${Math.round((Date.now()-t0)/1000)}초`},1000);el.textContent=label;try{return await fn()}finally{clearInterval(iv)}}
+async function callAI(prompt,maxTokens=2000,ms=60000){const{provider:p,key,model}=S.cfg.ai;
   if(!key)throw new Error('⑤ 내보내기·설정 탭에서 API 키를 먼저 입력하세요.');
   if(!model)throw new Error('⑤ 내보내기·설정 탭에서 [모델 목록 불러오기]로 모델을 고르세요.');
   let r,j;
-  if(p==='gemini'){r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contents:[{parts:[{text:prompt}]}]})});
+  if(p==='gemini'){r=await fetchT(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contents:[{parts:[{text:prompt}]}]})},ms);
     j=await r.json();if(!r.ok)throw new Error(j.error?.message||r.status);return clean((j.candidates?.[0]?.content?.parts||[]).map(x=>x.text||'').join(''))}
-  if(p==='claude'){r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model,max_tokens:maxTokens,messages:[{role:'user',content:prompt}]})});
+  if(p==='claude'){r=await fetchT('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model,max_tokens:maxTokens,messages:[{role:'user',content:prompt}]})},ms);
     j=await r.json();if(!r.ok)throw new Error(j.error?.message||r.status);return clean((j.content||[]).map(x=>x.text||'').join(''))}
-  r=await fetch('https://api.openai.com/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+key},body:JSON.stringify({model,messages:[{role:'user',content:prompt}]})});
+  r=await fetchT('https://api.openai.com/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+key},body:JSON.stringify({model,messages:[{role:'user',content:prompt}]})},ms);
   j=await r.json();if(!r.ok)throw new Error(j.error?.message||r.status);return clean(j.choices?.[0]?.message?.content||'')}
 const clean=t=>t.replace(/^```\w*\n?|```$/g,'').trim().replace(/^["'“]|["'”]$/g,'').trim();
+const mPreview=id=>/preview|exp|experimental|latest/.test(id),mSlow=id=>/pro|thinking|opus|deep|reasoning|^o\d/.test(id),
+  mFast={gemini:/flash/,claude:/haiku|sonnet/,openai:/mini/};
+function mVer(id){const m=id.replace(/\d{8}/,'').match(/(\d+)(?:[.-](\d))?/);return m?+(m[1]+'.'+(m[2]||0)):0}
+function rankModels(p,ids){return ids.map((id,i)=>({id,i})).sort((a,b)=>{const k=x=>[mPreview(x.id)?1:0,mSlow(x.id)?1:0,mFast[p].test(x.id)?0:1,/lite|nano/.test(x.id)?1:0];
+  const ka=k(a),kb=k(b);for(let j=0;j<ka.length;j++)if(ka[j]!==kb[j])return ka[j]-kb[j];return mVer(b.id)-mVer(a.id)||a.i-b.i}).map(x=>x.id)}
+function renderModelSel(){const ai=S.cfg.ai,list=ai.list?.provider===ai.provider?ai.list.ids:[],ok=ai.ok||[],sel=$('#aimodelsel');
+  const lab=(id,i)=>id+(i===0?' ⭐추천':'')+(mPreview(id)?' (미리보기)':'')+(mSlow(id)?' (느림)':'')+(ok.includes(ai.provider+':'+id)?' ✅':'');
+  const custom=ai.model&&!list.includes(ai.model);
+  sel.innerHTML=(list.length?'':'<option value="">먼저 [모델 목록 불러오기]를 누르세요</option>')+list.map((id,i)=>`<option value="${esc(id)}"${id===ai.model?' selected':''}>${esc(lab(id,i))}</option>`).join('')+`<option value="__custom"${custom?' selected':''}>직접 입력…</option>`;
+  $('#aimodel').classList.toggle('hide',!custom);$('#aimodel').value=custom?ai.model:''}
+$('#aimodelsel').onchange=e=>{const v=e.target.value;if(v==='__custom'){$('#aimodel').classList.remove('hide');$('#aimodel').focus();return}
+  $('#aimodel').classList.add('hide');S.cfg.ai.model=v;$('#aimsg').textContent='';save()};
 async function loadModels(){const{provider:p,key}=S.cfg.ai;if(!key)return $('#aimsg').textContent='API 키를 먼저 입력하세요.';
-  $('#aimsg').textContent='불러오는 중…';
-  try{let ids=[],r,j;
-    if(p==='gemini'){r=await fetch(`https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000&key=${encodeURIComponent(key)}`);j=await r.json();if(!r.ok)throw new Error(j.error?.message||r.status);
-      ids=(j.models||[]).filter(m=>(m.supportedGenerationMethods||[]).includes('generateContent')).map(m=>m.name.replace(/^models\//,'')).filter(n=>/^gemini/.test(n)&&!/tts|image|embedding|live|audio/.test(n));
-      ids.sort((a,b)=>ver(b)-ver(a)||score(b,/flash(?!-lite)/)-score(a,/flash(?!-lite)/)||score(a,/preview|exp/)-score(b,/preview|exp/))}
-    else if(p==='claude'){r=await fetch('https://api.anthropic.com/v1/models?limit=100',{headers:{'x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'}});j=await r.json();if(!r.ok)throw new Error(j.error?.message||r.status);
-      ids=(j.data||[]).map(m=>m.id);const s=ids.find(x=>/sonnet/.test(x));if(s)ids=[s,...ids.filter(x=>x!==s)]}
-    else{r=await fetch('https://api.openai.com/v1/models',{headers:{Authorization:'Bearer '+key}});j=await r.json();if(!r.ok)throw new Error(j.error?.message||r.status);
-      ids=(j.data||[]).filter(m=>/^(gpt-|o\d|chatgpt)/.test(m.id)&&!/audio|realtime|tts|transcribe|image|search|embedding|moderation|instruct/.test(m.id)).sort((a,b)=>b.created-a.created).map(m=>m.id);
-      const m=ids.find(x=>/mini/.test(x));if(m)ids=[m,...ids.filter(x=>x!==m)]}
+  try{await timed($('#aimsg'),'불러오는 중…',async()=>{let ids=[],r,j;
+    if(p==='gemini'){r=await fetchT(`https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000&key=${encodeURIComponent(key)}`,{},30000);j=await r.json();if(!r.ok)throw new Error(j.error?.message||r.status);
+      ids=(j.models||[]).filter(m=>(m.supportedGenerationMethods||[]).includes('generateContent')).map(m=>m.name.replace(/^models\//,'')).filter(n=>/^gemini/.test(n)&&!/tts|image|embedding|live|audio|robotics|computer/.test(n))}
+    else if(p==='claude'){r=await fetchT('https://api.anthropic.com/v1/models?limit=100',{headers:{'x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'}},30000);j=await r.json();if(!r.ok)throw new Error(j.error?.message||r.status);
+      ids=(j.data||[]).map(m=>m.id)}
+    else{r=await fetchT('https://api.openai.com/v1/models',{headers:{Authorization:'Bearer '+key}},30000);j=await r.json();if(!r.ok)throw new Error(j.error?.message||r.status);
+      ids=(j.data||[]).filter(m=>/^(gpt-|o\d|chatgpt)/.test(m.id)&&!/audio|realtime|tts|transcribe|image|search|embedding|moderation|instruct/.test(m.id)).sort((a,b)=>b.created-a.created).map(m=>m.id)}
     if(!ids.length)throw new Error('사용 가능한 모델이 없습니다.');
-    $('#aimodels').innerHTML=ids.map(x=>`<option value="${esc(x)}">`).join('');
-    if(!ids.includes(S.cfg.ai.model)){S.cfg.ai.model=ids[0];$('#aimodel').value=ids[0];save()}
-    $('#aimsg').textContent=`모델 ${ids.length}개 · 추천: ${ids[0]}`}
-  catch(e){$('#aimsg').textContent='오류: '+e.message}}
-const ver=n=>{const m=n.match(/(\d+(\.\d+)?)/);return m?+m[1]:0},score=(n,re)=>re.test(n)?1:0;
-async function testAI(){$('#aimsg').textContent='테스트 중…';try{const r=await callAI('연결 테스트입니다. "확인"이라고만 답하세요.',20);$('#aimsg').textContent='✅ 연결 성공 ('+S.cfg.ai.model+'): '+r.slice(0,30)}catch(e){$('#aimsg').textContent='❌ '+e.message}}
+    ids=rankModels(p,ids);S.cfg.ai.list={provider:p,ids};
+    if(!ids.includes(S.cfg.ai.model))S.cfg.ai.model=ids[0];
+    renderModelSel();save();$('#aimsg').textContent=`모델 ${ids.length}개 · 선택: ${S.cfg.ai.model}`})}
+  catch(e){$('#aimsg').textContent='❌ '+e.message}}
+async function testAI(){const m=S.cfg.ai.model;try{const r=await timed($('#aimsg'),`${m} 테스트 중…`,()=>callAI('연결 테스트입니다. "확인"이라고만 답하세요.',20,30000));
+  const k=S.cfg.ai.provider+':'+m;S.cfg.ai.ok=[...new Set([...(S.cfg.ai.ok||[]),k])];renderModelSel();save();$('#aimsg').textContent='✅ 연결 성공 ('+m+'): '+r.slice(0,30)}
+  catch(e){$('#aimsg').textContent='❌ '+m+': '+e.message}}
 function trimPrompt(text,target){return`너는 대한민국 고등학교 교사의 학교생활기록부 '세부능력 및 특기사항' 문장 편집을 돕는다. 아래 원문을 다음 조건에 맞게 다듬어라.
 - 목표 분량: 나이스 기준 ${target}바이트 이하, 가능하면 ${Math.round(target*.9)}바이트 이상 (한글 1자=3바이트, 영문·숫자·공백·문장부호=1바이트). 원문은 ${bytes(text)}바이트임.
 - 원문에 없는 사실, 활동, 수치를 새로 만들지 말 것. 늘려야 할 때는 원문 내용을 구체화하는 범위에서만 늘릴 것.
@@ -571,8 +584,8 @@ const anon=(t,s)=>s.name?t.split(s.name).join('학생'):t;
 function aiOne(){const s=curS(),t=$('#ftext').value;if(!t.trim())return toast('다듬을 문장이 없습니다.');
   $('#ai-who').textContent=`${s.cls} ${s.name}`;$('#ai-orig').value=t;$('#ai-ob').textContent=`(${bytes(t)}바이트)`;
   $('#ai-target').value=S.cfg.byteLimit;$('#ai-res').value='';$('#ai-rb').textContent='';$('#ai-msg').textContent='';$('#aimodal').classList.add('on')}
-$('#ai-run').onclick=async()=>{const s=curS();$('#ai-msg').textContent='요청 중…';
-  try{const r=await callAI(trimPrompt(anon($('#ai-orig').value,s),+$('#ai-target').value||S.cfg.byteLimit));$('#ai-res').value=r;$('#ai-res').dispatchEvent(new Event('input'));$('#ai-msg').textContent='완료'}
+$('#ai-run').onclick=async()=>{const s=curS();
+  try{const r=await timed($('#ai-msg'),'요청 중…',()=>callAI(trimPrompt(anon($('#ai-orig').value,s),+$('#ai-target').value||S.cfg.byteLimit)));$('#ai-res').value=r;$('#ai-res').dispatchEvent(new Event('input'));$('#ai-msg').textContent='완료'}
   catch(e){$('#ai-msg').textContent='오류: '+e.message}};
 $('#ai-res').oninput=()=>{const v=$('#ai-res').value,b=bytes(v),t=+$('#ai-target').value,L=lint(v);$('#ai-rb').innerHTML=`<span class="badge ${b>t?'bad':'ok'}">${b}바이트</span>${L.length?` <span class="badge bad">⚠ ${esc(L.map(x=>x.w).join(', '))}</span>`:''}`};
 $('#ai-cancel').onclick=()=>$('#aimodal').classList.remove('on');
@@ -588,8 +601,8 @@ let AIADD=[];
 async function aiClassify(){let t=$('#aiadd').value.trim();if(!t)return toast('원문을 붙여넣으세요.');
   for(const s of ST)if(s.name)t=t.split(s.name).join('학생');
   const items=[...new Set([...bankItems(),...presentItems().map(h=>S.cfg.items[h].label)])];
-  $('#aiaddmsg').textContent='AI 분류 중…';$('#aiaddres').innerHTML='';
-  try{const r=await callAI(`너는 고등학교 교사의 세특 문장 은행 정리를 돕는다. 아래 기존 세특 원문을 1~2문장 단위로 나누고, 다른 학생에게도 재사용할 수 있게 다듬은 뒤 항목과 단계로 분류하라.
+  $('#aiaddres').innerHTML='';
+  try{const r=await timed($('#aiaddmsg'),'AI 분류 중…',()=>callAI(`너는 고등학교 교사의 세특 문장 은행 정리를 돕는다. 아래 기존 세특 원문을 1~2문장 단위로 나누고, 다른 학생에게도 재사용할 수 있게 다듬은 뒤 항목과 단계로 분류하라.
 - 항목은 가능하면 다음 중에서 고르고, 맞지 않으면 짧은 새 항목 이름을 만들 것: ${items.join(', ')||'(없음)'}
 - 단계는 1~10 (10이 가장 우수). 해당 문장이 어울리는 범위를 "부터","까지"로 줄 것 (예: 9, 10).
 - 학생 이름, 학번, 특정 학생에게만 해당하는 고유 내용(구체적 탐구 주제명 등)은 일반화하거나 {탐구주제} 같은 변수로 바꿀 것.
@@ -598,7 +611,7 @@ ${RULES()}
 - 출력은 다른 설명 없이 JSON 배열만: [{"항목":"...","부터":9,"까지":10,"문장":"..."}]
 
 원문:
-${t}`,8000);
+${t}`,8000,180000));
     const js=r.slice(r.indexOf('['),r.lastIndexOf(']')+1);AIADD=JSON.parse(js).filter(x=>x&&x['문장']);
     $('#aiaddmsg').textContent=`${AIADD.length}개 문장을 찾았습니다. 추가할 문장을 고르세요.`;
     $('#aiaddres').innerHTML=`<div class="scroll" style="max-height:340px;margin-top:8px"><table style="width:100%"><tr><th><input type="checkbox" checked onchange="document.querySelectorAll('.aisel').forEach(c=>c.checked=this.checked)"></th><th>항목</th><th>단계</th><th>문장</th></tr>
@@ -625,10 +638,10 @@ $('#loadproj').onchange=async e=>{const f=e.target.files[0];e.target.value='';if
   if(d.type!=='seteuk-project')return alert('작업 백업 파일이 아닙니다.');applyProject(d);toast('불러왔습니다.')};
 function resetEdits(){if(confirm('모든 학생의 단계·문장 수정 내용을 초기화할까요?')){S.edits={};recompute();renderAll();save()}}
 function resetAll(){if(confirm('업로드한 데이터와 항목 설정, 학생 작업을 모두 지웁니다(문장 은행은 유지). 계속할까요?')){const key=S.cfg.ai.key,ai=S.cfg.ai,subject=S.cfg.subject;S.book=null;S.cfg=defaultCfg();S.cfg.ai=ai;S.cfg.ai.key=key;S.cfg.subject=subject;S.edits={};UI.sel=null;rebuild();renderAll();save()}}
-function renderSettings(){$('#blimit').value=S.cfg.byteLimit;$('#sep').value=S.cfg.sep;$('#aiprov').value=S.cfg.ai.provider;$('#aimodel').value=S.cfg.ai.model;$('#aikey').value=S.cfg.ai.key;$('#subj').value=S.cfg.subject}
+function renderSettings(){$('#blimit').value=S.cfg.byteLimit;$('#sep').value=S.cfg.sep;$('#aiprov').value=S.cfg.ai.provider;renderModelSel();$('#aikey').value=S.cfg.ai.key;$('#subj').value=S.cfg.subject}
 $('#blimit').onchange=e=>{S.cfg.byteLimit=+e.target.value||1500;renderWork();save()};
 $('#sep').onchange=e=>{S.cfg.sep=e.target.value;renderWork();save()};
-$('#aiprov').onchange=e=>{S.cfg.ai.provider=e.target.value;S.cfg.ai.model='';$('#aimodels').innerHTML='';$('#aimsg').textContent='';renderSettings();save()};
+$('#aiprov').onchange=e=>{S.cfg.ai.provider=e.target.value;S.cfg.ai.model='';$('#aimsg').textContent='';renderSettings();save()};
 $('#aimodel').onchange=e=>{S.cfg.ai.model=e.target.value.trim();save()};
 $('#aikey').onchange=e=>{S.cfg.ai.key=e.target.value.trim();try{localStorage.setItem(AIKEY_KEY,S.cfg.ai.key)}catch(_){}};
 $('#subj').onchange=e=>{S.cfg.subject=e.target.value.trim();renderAll();save()};
