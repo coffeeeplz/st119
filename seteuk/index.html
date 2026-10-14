@@ -6,51 +6,53 @@
 <title>세특 도우미</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
-:root{--bg:#f6f7f9;--card:#fff;--line:#dfe3e8;--text:#1f2329;--sub:#6b7280;--pri:#2563eb;--pri2:#dbeafe;--bad:#dc2626;--bad2:#fee2e2;--ok:#16a34a;--warn:#b45309;--warn2:#fef3c7}
+:root{--bg:#f5f6f8;--card:#fff;--line:#dde1e7;--text:#1d232b;--sub:#66707c;--pri:#2459d6;--onpri:#fff;--pri2:#dfe8fb;--bad:#c62828;--bad2:#fde3e3;--ok:#1b7f3b;--ok2:#ddf3e4;--warn:#9a5a07;--warn2:#fcefd2;--field:#fff;--th:#eef1f5;--hover:#eef3fb;--grp:#f7f9fe;--omit:#f6f7f9}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#14171c;--card:#1c2027;--line:#2e343e;--text:#e6e9ee;--sub:#9aa3ae;--pri:#6d9bff;--onpri:#0b1220;--pri2:#24324f;--bad:#ff7b72;--bad2:#3b1f22;--ok:#5ad18a;--ok2:#193326;--warn:#f0b75a;--warn2:#3a2e17;--field:#161a20;--th:#232832;--hover:#222a38;--grp:#1a2130;--omit:#191c22;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#14171c;--card:#1c2027;--line:#2e343e;--text:#e6e9ee;--sub:#9aa3ae;--pri:#6d9bff;--onpri:#0b1220;--pri2:#24324f;--bad:#ff7b72;--bad2:#3b1f22;--ok:#5ad18a;--ok2:#193326;--warn:#f0b75a;--warn2:#3a2e17;--field:#161a20;--th:#232832;--hover:#222a38;--grp:#1a2130;--omit:#191c22;color-scheme:dark}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--text);font:14px/1.5 "Pretendard","Malgun Gothic",sans-serif}
-header{background:var(--card);border-bottom:1px solid var(--line);padding:8px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;position:sticky;top:0;z-index:5}
+header{background:var(--card);border-bottom:1px solid var(--line);padding:8px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;position:sticky;top:env(safe-area-inset-top,0px);z-index:5}
 header h1{font-size:18px;margin:0}
 nav button{border:0;background:none;padding:8px 10px;border-radius:6px;cursor:pointer;font-size:14px;color:var(--sub)}
 nav button.on{background:var(--pri2);color:var(--pri);font-weight:700}
-main{padding:16px;max-width:1400px;margin:0 auto}
+main{padding:16px;min-width:0;max-width:1400px;margin:0 auto}
 section{display:none}section.on{display:block}
 .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:12px}
 .card h3{margin:0 0 8px;font-size:15px}
 .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .sub{color:var(--sub);font-size:12px}
-button.b{border:1px solid var(--line);background:#fff;padding:6px 10px;border-radius:6px;cursor:pointer;font-size:13px}
+button.b{border:1px solid var(--line);background:var(--field);color:var(--text);padding:6px 10px;border-radius:6px;cursor:pointer;font-size:13px}
 button.b:hover{border-color:var(--pri)}
-button.p{background:var(--pri);color:#fff;border-color:var(--pri)}
+button.p{background:var(--pri);color:var(--onpri);border-color:var(--pri)}
 button.s{padding:2px 7px;font-size:12px}
-input,select,textarea{font:inherit;border:1px solid var(--line);border-radius:6px;padding:5px 7px;background:#fff;color:var(--text)}
+input,select,textarea{font:inherit;border:1px solid var(--line);border-radius:6px;padding:5px 7px;background:var(--field);color:var(--text)}
 input[type=number]{width:70px}
 textarea{width:100%;resize:vertical}
 table{border-collapse:collapse;font-size:13px}
 th,td{border:1px solid var(--line);padding:4px 6px;text-align:left;vertical-align:top}
-th{background:#f1f3f5;position:sticky;top:0}
+th{background:var(--th);position:sticky;top:0}
 .scroll{overflow:auto;max-height:260px}
-.badge{display:inline-block;padding:1px 7px;border-radius:10px;font-size:12px;background:#eef0f3}
+.badge{display:inline-block;padding:1px 7px;border-radius:10px;font-size:12px;background:var(--th)}
 .badge.bad{background:var(--bad2);color:var(--bad)}
-.badge.ok{background:#dcfce7;color:var(--ok)}
+.badge.ok{background:var(--ok2);color:var(--ok)}
 .badge.warn{background:var(--warn2);color:var(--warn)}
 .work{display:grid;grid-template-columns:260px 1fr;gap:12px}
 @media(max-width:800px){.work{grid-template-columns:1fr}}
 .list{max-height:calc(100vh - 210px);overflow:auto;padding:0;margin:0;list-style:none}
 .list li{padding:7px 9px;border-bottom:1px solid var(--line);cursor:pointer;display:flex;justify-content:space-between;gap:6px}
-.list li:hover{background:#f3f6fb}.list li.sel{background:var(--pri2)}
+.list li:hover{background:var(--hover)}.list li.sel{background:var(--pri2)}
 .irow{border:1px solid var(--line);border-radius:8px;padding:8px;margin-bottom:8px}
-.irow.omit{background:#fafafa}
+.irow.omit{background:var(--omit)}
 .note{background:var(--warn2);color:var(--warn);padding:6px 9px;border-radius:6px;font-size:13px;margin:6px 0}
 .lint{background:var(--bad2);color:var(--bad);padding:6px 9px;border-radius:6px;font-size:13px;margin:6px 0}
-.grp{border-left:3px solid var(--pri);padding:6px 8px;margin:6px 0;background:#fafbff}
+.grp{border-left:3px solid var(--pri);padding:6px 8px;margin:6px 0;background:var(--grp)}
 .dist{display:flex;gap:3px;align-items:flex-end;height:44px;margin-top:4px}
 .dist div{width:22px;background:var(--pri2);position:relative;font-size:10px;text-align:center}
 .dist span{position:absolute;bottom:-14px;left:0;right:0;color:var(--sub)}
 .modal{position:fixed;inset:0;background:#0006;display:none;align-items:center;justify-content:center;z-index:20}
 .modal.on{display:flex}
-.modal .box{background:#fff;border-radius:10px;padding:16px;width:min(860px,94vw);max-height:90vh;overflow:auto}
-#toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#222;color:#fff;padding:8px 14px;border-radius:8px;display:none;z-index:30}
+.modal .box{background:var(--card);border-radius:10px;padding:16px;width:min(860px,94vw);max-height:90vh;overflow:auto}
+#toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--text);color:var(--bg);padding:8px 14px;border-radius:8px;display:none;z-index:30}
 .final{min-height:150px}
 .hide{display:none}
 #banktbl td textarea{min-width:420px}
@@ -138,7 +140,7 @@ th{background:#f1f3f5;position:sticky;top:0}
       <button class="b p" onclick="exportXlsx()">📥 엑셀 저장</button>
     </div>
   </div>
-  <div class="card">
+  <div class="card" id="fscard">
     <h3>💾 작업 파일 (PC에 자동 저장)</h3>
     <p class="sub">작업 파일(.json)을 연결하면 수정할 때마다 그 파일에 자동 저장됩니다. 문장 은행·설정·학생 작업이 모두 들어 있습니다. 구글 드라이브나 원드라이브 동기화 폴더에 두면 다른 PC에서도 이어서 쓸 수 있습니다. (크롬·엣지 지원)</p>
     <div class="row">
@@ -160,13 +162,15 @@ th{background:#f1f3f5;position:sticky;top:0}
   <div class="card">
     <h3>AI 설정</h3>
     <div class="row">
-      <select id="aiprov"><option value="gemini">Google Gemini</option><option value="claude">Anthropic Claude</option><option value="openai">OpenAI</option></select>
-      API 키 <input id="aikey" type="password" style="width:260px">
-      <button class="b" onclick="loadModels()">모델 목록 불러오기</button>
+      <select id="aiprov"><option value="claudesub">Claude 구독 (claude.ai에서 열 때, 키 불필요)</option><option value="gemini">Google Gemini</option><option value="claude">Anthropic Claude</option><option value="openai">OpenAI</option></select>
+      <span id="aikeywrap" class="row">API 키 <input id="aikey" type="password" style="width:260px">
+      <button class="b" onclick="loadModels()">모델 목록 불러오기</button></span>
     </div>
-    <div class="row" style="margin-top:6px">모델 <select id="aimodelsel" style="max-width:380px"></select><input id="aimodel" class="hide" placeholder="모델 이름 직접 입력" style="width:220px">
+    <div class="row" style="margin-top:6px"><span id="aitierwrap" class="row">성능 <select id="aitier"><option value="default">균형 (추천)</option><option value="quick">빠름</option><option value="complex">고성능 (느림)</option></select></span>
+      <span id="aimodelwrap" class="row">모델 <select id="aimodelsel" style="max-width:380px"></select><input id="aimodel" class="hide" placeholder="모델 이름 직접 입력" style="width:220px"></span>
       <button class="b" onclick="testAI()">연결 테스트</button><span class="sub" id="aimsg"></span></div>
-    <p class="sub">⭐추천: 빠르고 안정적인 모델 · (미리보기): 시험 버전이라 느리거나 막힐 수 있음 · (느림): 깊게 생각하는 모델 · ✅: 연결 테스트 성공. 응답이 60초 넘게 없으면 자동으로 중단됩니다.<br>API 키는 이 브라우저에만 저장되며 작업 파일·백업에는 포함되지 않습니다. AI에는 학생 이름을 '학생'으로 바꾼 문장만 전송됩니다. 지시문에 기재요령(기재 원칙·대체표현)이 함께 전달됩니다.</p>
+    <p class="sub" id="aisubnote">Claude 구독 모드는 claude.ai에서 이 프로그램(아티팩트)을 열었을 때만 동작하며, 선생님의 Claude 사용량에서 차감됩니다. 처음 사용할 때 허용 창이 한 번 뜹니다.</p>
+    <p class="sub" id="aikeynote">⭐추천: 빠르고 안정적인 모델 · (미리보기): 시험 버전이라 느리거나 막힐 수 있음 · (느림): 깊게 생각하는 모델 · ✅: 연결 테스트 성공. 응답이 60초 넘게 없으면 자동으로 중단됩니다.<br>API 키는 이 브라우저에만 저장되며 작업 파일·백업에는 포함되지 않습니다. AI에는 학생 이름을 '학생'으로 바꾼 문장만 전송됩니다. 지시문에 기재요령(기재 원칙·대체표현)이 함께 전달됩니다.</p>
   </div>
   <div class="card">
     <div class="row"><button class="b" onclick="resetEdits()">학생별 수정 내용 모두 초기화</button><button class="b" onclick="resetAll()">전체 초기화 (문장 은행 제외)</button></div>
@@ -183,6 +187,7 @@ th{background:#f1f3f5;position:sticky;top:0}
   <textarea id="ai-res" rows="6"></textarea>
   <div class="row" style="margin-top:8px;justify-content:flex-end"><button class="b" id="ai-cancel">취소</button><button class="b p" id="ai-apply">적용</button></div>
 </div></div>
+<div class="modal" id="dlg"><div class="box" style="max-width:480px"><p id="dlg-msg" style="white-space:pre-line;margin-top:0"></p><div class="row" id="dlg-btns" style="justify-content:flex-end"></div></div></div>
 <div id="toast"></div>
 
 <script>
@@ -193,6 +198,13 @@ const isNum=v=>typeof v==='number'||(typeof v==='string'&&/^\s*-?\d+(\.\d+)?\s*$
 function toast(m){const t=$('#toast');t.textContent=m;t.style.display='block';clearTimeout(toast.t);toast.t=setTimeout(()=>t.style.display='none',2500)}
 function bytes(t){let b=0;for(const ch of String(t||'')){if(ch==='\r')continue;const c=ch.codePointAt(0);b+=ch==='\n'?2:c<128?1:3}return b}
 function hash(s){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}return h>>>0}
+function dlg(msg,btns=[['확인',true]]){return new Promise(res=>{const m=$('#dlg');$('#dlg-msg').textContent=msg;const b=$('#dlg-btns');b.innerHTML='';
+  btns.forEach(([t,v],i)=>{const x=document.createElement('button');x.className='b'+(i===btns.length-1?' p':'');x.textContent=t;x.onclick=()=>{m.classList.remove('on');res(v)};b.append(x)});m.classList.add('on')})}
+const ask=(msg,ok='계속')=>dlg(msg,[['취소',false],[ok,true]]),notice=msg=>dlg(msg);
+let SAMPLE=null,DL=null;const IN_CLAUDE=!!window.claude?.use;
+async function saveOut(name,blob){if(DL){try{await DL.save({filename:name,data:blob});toast('저장했습니다.')}catch(e){if(e?.code!=='declined')notice('저장하지 못했습니다: '+(e?.message||e?.code))}return}
+  if(IN_CLAUDE)return notice('잠시 후 다시 눌러 주세요. (저장 기능 준비 중)');download(name,blob)}
+const wbBlob=wb=>new Blob([XLSX.write(wb,{type:'array',bookType:'xlsx'})]);
 const TIER=l=>l>=9?'최상':l>=7?'상':l>=5?'중':l>=3?'중하':'하';
 
 /* ---------- 기재요령 ---------- */
@@ -216,7 +228,7 @@ function lint(t){let scratch=String(t||'');const out=[];
 function substPrompt(){return [...S.subst,...SUBST_BUILTIN].map(s=>s.words.join('/')+'→'+s.rep).join('; ')}
 
 /* ---------- 상태 ---------- */
-function defaultCfg(){return{sheets:{},items:{},order:[],byteLimit:1500,sep:' ',subject:'',ai:{provider:'gemini',model:'',key:''}}}
+function defaultCfg(){return{sheets:{},items:{},order:[],byteLimit:1500,sep:' ',subject:'',ai:{provider:'gemini',model:'',key:'',tier:'default'}}}
 let S={book:null,cfg:defaultCfg(),edits:{},bank:[],subst:[]};
 let ST=[],C={lv:{},cyc:{}};
 const UI={tab:'load',sel:null};
@@ -236,7 +248,7 @@ function loadLocal(){
   try{S.cfg.ai.key=localStorage.getItem(AIKEY_KEY)||''}catch(e){}
 }
 function signature(){return S.book.names.map(n=>n+':'+(S.book.sheets[n][0]||[]).join(',')).join('|')}
-function download(name,blob){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
+function download(name,blob){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.style.display='none';document.body.append(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1000)}
 const today=()=>new Date().toISOString().slice(0,10).replace(/-/g,'');
 
 /* ---------- 작업 파일 자동 저장 (File System Access API) ---------- */
@@ -245,17 +257,17 @@ function idb(){return new Promise((ok,no)=>{const r=indexedDB.open('seteuk',1);r
 async function idbSet(k,v){try{const db=await idb();await new Promise((ok,no)=>{const t=db.transaction('kv','readwrite');v==null?t.objectStore('kv').delete(k):t.objectStore('kv').put(v,k);t.oncomplete=ok;t.onerror=no})}catch(e){}}
 async function idbGet(k){try{const db=await idb();return await new Promise(ok=>{const r=db.transaction('kv').objectStore('kv').get(k);r.onsuccess=()=>ok(r.result);r.onerror=()=>ok(null)})}catch(e){return null}}
 const FTYPES=[{description:'세특 작업 파일',accept:{'application/json':['.json']}}];
-function fsOK(){if(window.showSaveFilePicker)return true;alert('이 브라우저는 파일 자동 저장을 지원하지 않습니다. 크롬이나 엣지를 사용하거나 수동 백업을 이용하세요.');return false}
+function fsOK(){if(window.showSaveFilePicker)return true;notice('이 브라우저는 파일 자동 저장을 지원하지 않습니다. 크롬이나 엣지를 사용하거나 수동 백업을 이용하세요.');return false}
 function fhStatus(m){$('#fhinfo').textContent=FH?`연결됨: ${FH.name}${m?' · '+m:''}`:'연결된 파일 없음';$('#status').textContent=FH?`💾 ${FH.name}${m?' · '+m:''}`:''}
 async function writeFile(){if(!FH)return;try{const w=await FH.createWritable();await w.write(JSON.stringify(projectData()));await w.close();fhStatus('저장 '+new Date().toTimeString().slice(0,5))}catch(e){fhStatus('저장 실패: '+e.message)}}
-async function linkNewFile(){if(!fsOK())return;try{FH=await showSaveFilePicker({suggestedName:`세특_작업_${today()}.json`,types:FTYPES});await idbSet('fh',FH);await writeFile();$('#relink').classList.add('hide')}catch(e){if(e.name!=='AbortError')alert(e.message)}}
+async function linkNewFile(){if(!fsOK())return;try{FH=await showSaveFilePicker({suggestedName:`세특_작업_${today()}.json`,types:FTYPES});await idbSet('fh',FH);await writeFile();$('#relink').classList.add('hide')}catch(e){if(e.name!=='AbortError')notice(e.message)}}
 async function openLinkedFile(){if(!fsOK())return;try{const[h]=await showOpenFilePicker({types:FTYPES});const d=JSON.parse(await(await h.getFile()).text());
-  if(d.type!=='seteuk-project')return alert('세특 작업 파일이 아닙니다.');FH=h;await idbSet('fh',FH);applyProject(d);fhStatus('불러옴');$('#relink').classList.add('hide')}catch(e){if(e.name!=='AbortError')alert(e.message)}}
+  if(d.type!=='seteuk-project')return notice('세특 작업 파일이 아닙니다.');FH=h;await idbSet('fh',FH);applyProject(d);fhStatus('불러옴');$('#relink').classList.add('hide')}catch(e){if(e.name!=='AbortError')notice(e.message)}}
 async function unlinkFile(){FH=null;await idbSet('fh',null);fhStatus()}
 async function relink(){const h=await idbGet('fh');if(!h)return;try{if(await h.requestPermission({mode:'readwrite'})!=='granted')return;
-  const txt=await(await h.getFile()).text();FH=h;if(txt.trim()){const d=JSON.parse(txt);if(d.type==='seteuk-project')applyProject(d)}fhStatus('다시 연결됨');$('#relink').classList.add('hide')}catch(e){alert('다시 연결하지 못했습니다: '+e.message)}}
+  const txt=await(await h.getFile()).text();FH=h;if(txt.trim()){const d=JSON.parse(txt);if(d.type==='seteuk-project')applyProject(d)}fhStatus('다시 연결됨');$('#relink').classList.add('hide')}catch(e){notice('다시 연결하지 못했습니다: '+e.message)}}
 $('#relink').onclick=relink;
-(async()=>{const h=await idbGet('fh');if(h){$('#relink').textContent=`📂 ${h.name} 다시 연결`;$('#relink').classList.remove('hide')}fhStatus()})();
+(async()=>{const h=await idbGet('fh');if(h&&!IN_CLAUDE){$('#relink').textContent=`📂 ${h.name} 다시 연결`;$('#relink').classList.remove('hide')}fhStatus()})();
 
 /* ---------- 시트 해석 ---------- */
 function headers(n){const sc=S.cfg.sheets[n]||{};const r=S.book.sheets[n][(sc.headerRow||1)-1]||[];
@@ -327,21 +339,21 @@ function ensureItems(){for(const h of scoreHeaders()){
 async function importBank(f){
   const wb=XLSX.read(await f.arrayBuffer(),{type:'array'});
   const name=wb.SheetNames.find(n=>n==='문장은행')||wb.SheetNames.find(n=>(XLSX.utils.sheet_to_json(wb.Sheets[n],{header:1})[0]||[]).includes('문장'));
-  if(!name)return alert('「문장」 열이 있는 시트를 찾지 못했습니다.');
+  if(!name)return notice('「문장」 열이 있는 시트를 찾지 못했습니다.');
   const pick=(r,...ks)=>{for(const k of ks)if(r[k]!==undefined&&r[k]!=='')return r[k];return''};
   const rows=XLSX.utils.sheet_to_json(wb.Sheets[name],{defval:''}).map(r=>({subj:String(pick(r,'과목')||'공통').trim(),item:String(pick(r,'항목')).trim(),
     from:+pick(r,'단계(부터)','부터')||1,to:+pick(r,'단계(까지)','까지')||10,text:String(pick(r,'문장')).trim(),src:String(pick(r,'출처')),note:String(pick(r,'비고'))})).filter(r=>r.item&&r.text);
-  const replace=S.bank.length&&confirm(`문장 ${rows.length}개를 읽었습니다.\n[확인] 기존 문장 은행을 이 파일로 교체\n[취소] 기존 문장에 합치기(중복 제외)`);
+  const replace=S.bank.length?await dlg(`문장 ${rows.length}개를 읽었습니다. 기존 문장 은행을 어떻게 할까요?`,[['기존에 합치기(중복 제외)',false],['이 파일로 교체',true]]):false;
   if(replace||!S.bank.length)S.bank=rows;
   else{const k=r=>r.subj+'|'+r.item+'|'+r.text,have=new Set(S.bank.map(k));let n=0;for(const r of rows)if(!have.has(k(r))){S.bank.push(r);n++}toast(`${n}개 추가`)}
   if(wb.Sheets['대체표현'])S.subst=XLSX.utils.sheet_to_json(wb.Sheets['대체표현'],{header:1}).slice(1).filter(r=>r[0]&&r[1]).map(r=>({words:String(r[0]).split(/[,，]/).map(x=>x.trim()).filter(Boolean),rep:String(r[1]).trim()}));
   renderBank();save();toast('문장 은행을 불러왔습니다.')}
-$('#bankfile').onchange=async e=>{const f=e.target.files[0];if(f)try{await importBank(f)}catch(err){alert('읽지 못했습니다: '+err.message)}e.target.value=''};
+$('#bankfile').onchange=async e=>{const f=e.target.files[0];if(f)try{await importBank(f)}catch(err){notice('읽지 못했습니다: '+err.message)}e.target.value=''};
 function exportBank(){const wb=XLSX.utils.book_new();
   const ws=XLSX.utils.aoa_to_sheet([['과목','항목','단계(부터)','단계(까지)','수준','문장','바이트','출처','비고'],...S.bank.map(r=>[r.subj,r.item,r.from,r.to,TIER(r.to),r.text,bytes(r.text),r.src||'',r.note||''])]);
   ws['!cols']=[{wch:12},{wch:26},{wch:9},{wch:9},{wch:6},{wch:90},{wch:7},{wch:20},{wch:20}];XLSX.utils.book_append_sheet(wb,ws,'문장은행');
   const sub=S.subst.length?S.subst:SUBST_BUILTIN;const w2=XLSX.utils.aoa_to_sheet([['기재 유의어 (쉼표로 구분)','대체표현'],...sub.map(s=>[s.words.join(', '),s.rep])]);w2['!cols']=[{wch:90},{wch:24}];
-  XLSX.utils.book_append_sheet(wb,w2,'대체표현');XLSX.writeFile(wb,`세특_문장은행_${today()}.xlsx`)}
+  XLSX.utils.book_append_sheet(wb,w2,'대체표현');saveOut(`세특_문장은행_${today()}.xlsx`,wbBlob(wb))}
 function bankFiltered(){const fs=$('#bfs').value,fi=$('#bfi').value,q=$('#bfq').value.trim();
   return S.bank.map((r,i)=>[r,i]).filter(([r])=>(!fs||r.subj===fs)&&(!fi||r.item===fi)&&(!q||r.text.includes(q)))}
 function renderBank(){const subs=[...new Set(S.bank.map(r=>r.subj))],its=[...new Set(S.bank.filter(r=>!$('#bfs').value||r.subj===$('#bfs').value).map(r=>r.item))];
@@ -396,7 +408,7 @@ $('#file').onchange=async e=>{const f=e.target.files[0];if(!f)return;
     if(preset){S.cfg.sheets=preset.sheets;toast('저장된 양식 설정을 적용했습니다.')}
     else S.book.names.forEach(n=>autoDetect(n));
     UI.sel=null;rebuild();renderAll();save();
-  }catch(err){alert('파일을 읽지 못했습니다: '+err.message)}
+  }catch(err){notice('파일을 읽지 못했습니다: '+err.message)}
   e.target.value=''};
 function renderSheets(){const box=$('#sheets');
   if(!S.book){box.innerHTML='';$('#fileinfo').textContent='';return}
@@ -455,14 +467,14 @@ function itemsChanged(){recompute();renderItems();renderWork();save()}
 function setIt(i,k,v){itemAt(i)[k]=v;itemsChanged()}
 function setCut(i,l,v){itemAt(i).cuts[l]=v===''?null:+v;itemsChanged()}
 function setG(i,gi,k,v){const g=itemAt(i).groups[gi];g[k]=(k==='from'||k==='to')?Math.max(1,Math.min(10,+v||1)):v;itemsChanged()}
-function presetIt(i,k){if(!confirm(`${k}구간으로 묶음을 다시 만듭니다. 기존 문장은 사라집니다. 계속할까요?`))return;itemAt(i).groups=presetGroups(k);itemsChanged()}
+async function presetIt(i,k){if(!await ask(`${k}구간으로 묶음을 다시 만듭니다. 기존 문장은 사라집니다. 계속할까요?`))return;itemAt(i).groups=presetGroups(k);itemsChanged()}
 function addGroup(i){itemAt(i).groups.push({from:1,to:1,omit:false,sentences:''});itemsChanged()}
 function delGroup(i,gi){itemAt(i).groups.splice(gi,1);itemsChanged()}
 function moveItem(i,d){const hs=presentItems(),j=i+d;if(j<0||j>=hs.length)return;const o=S.cfg.order,a=o.indexOf(hs[i]),b=o.indexOf(hs[j]);[o[a],o[b]]=[o[b],o[a]];itemsChanged()}
-function fromBank(i){const n=$('#bk'+i).value;if(!n)return toast('문장 은행 항목을 고르세요.');
-  if(!confirm(`「${n}」 문장으로 이 항목의 문장 묶음을 바꿉니다. 계속할까요?`))return;const it=itemAt(i);it.groups=groupsFromBank(n);it.bank=n;itemsChanged()}
-function toBank(i){const it=itemAt(i),n=$('#bk'+i).value||it.bank||it.label;
-  const subj=confirm(`「${n}」 항목으로 문장 은행에 저장합니다.\n[확인] 공통(모든 과목)으로 저장\n[취소] 현재 과목(${S.cfg.subject||'미지정'})으로 저장`)?'공통':(S.cfg.subject||'공통');
+async function fromBank(i){const n=$('#bk'+i).value;if(!n)return toast('문장 은행 항목을 고르세요.');
+  if(!await ask(`「${n}」 문장으로 이 항목의 문장 묶음을 바꿉니다. 계속할까요?`))return;const it=itemAt(i);it.groups=groupsFromBank(n);it.bank=n;itemsChanged()}
+async function toBank(i){const it=itemAt(i),n=$('#bk'+i).value||it.bank||it.label;
+  const subj=await dlg(`「${n}」 항목으로 문장 은행에 저장합니다. 어디에 저장할까요?`,[['취소',null],[`현재 과목(${S.cfg.subject||'미지정'})`,S.cfg.subject||'공통'],['공통(모든 과목)','공통']]);if(!subj)return;
   S.bank=S.bank.filter(b=>!(b.item===n&&b.subj===subj));
   for(const g of it.groups)if(!g.omit)for(const t of String(g.sentences).split('\n').map(x=>x.trim()).filter(Boolean))S.bank.push({subj,item:n,from:g.from,to:g.to,text:t,src:'항목 설정에서 저장',note:''});
   it.bank=n;save();renderBank();toast('문장 은행에 저장했습니다.')}
@@ -521,7 +533,7 @@ function setLv(i,v){const e=ed(UI.sel),h=hAt(i);if(v==='')delete e.lv[h];else e.
 function shuffle(i){const e=ed(UI.sel),h=hAt(i);e.shift[h]=(e.shift[h]||0)+1;delete e.sent[h];renderDetail()}
 function resetSent(i){delete ed(UI.sel).sent[hAt(i)];renderDetail()}
 function resetFinal(){ed(UI.sel).final=null;renderDetail()}
-function resetStudent(){if(!confirm('이 학생의 단계·문장 수정을 모두 초기화할까요?'))return;delete S.edits[UI.sel];recompute();renderDetail()}
+async function resetStudent(){if(!await ask('이 학생의 단계·문장 수정을 모두 초기화할까요?'))return;delete S.edits[UI.sel];recompute();renderDetail()}
 ['#fcls','#fq','#fover','#flint'].forEach(id=>$(id).addEventListener('input',renderList));
 
 /* ---------- AI ---------- */
@@ -533,7 +545,13 @@ const RULES=()=>`[학교생활기록부 기재요령]
 async function fetchT(url,opt={},ms=60000){const c=new AbortController(),t=setTimeout(()=>c.abort(),ms);
   try{return await fetch(url,{...opt,signal:c.signal})}catch(e){if(e.name==='AbortError')throw new Error(`응답 없음(${ms/1000}초 초과). 다른 모델을 골라 보세요.`);throw new Error('네트워크 오류: '+e.message)}finally{clearTimeout(t)}}
 async function timed(el,label,fn){const t0=Date.now(),iv=setInterval(()=>{el.textContent=`${label} ${Math.round((Date.now()-t0)/1000)}초`},1000);el.textContent=label;try{return await fn()}finally{clearInterval(iv)}}
+const SMSG={not_granted:'Claude 사용을 허용하지 않았습니다. 페이지를 새로고침하면 다시 물어봅니다.',rate_limited:'Claude 사용량 한도에 걸렸거나 요청이 많습니다. 잠시 뒤 다시 시도하세요.',
+  session_expired:'claude.ai에 다시 로그인하세요.',sampling_disabled:'이 계정에서는 Claude 호출을 쓸 수 없습니다.',refused:'Claude가 이 요청을 처리하지 않았습니다. 내용을 바꿔 보세요.',
+  prompt_too_large:'보낼 내용이 너무 깁니다. 나눠서 하세요.',empty_completion:'응답이 비어 있습니다. 다시 시도하세요.',upstream_error:'일시적 오류입니다. 다시 시도하세요.',cancelled:'취소했습니다.'};
 async function callAI(prompt,maxTokens=2000,ms=60000){const{provider:p,key,model}=S.cfg.ai;
+  if(p==='claudesub'){if(!SAMPLE)throw new Error(IN_CLAUDE?'Claude 연결을 준비 중입니다. 잠시 후 다시 시도하세요.':'Claude 구독 모드는 claude.ai에서 연 아티팩트에서만 됩니다. 다른 AI를 고르세요.');
+    try{const r=await SAMPLE(prompt,{modelTier:S.cfg.ai.tier||'default',cache:false});return clean(r.text)}
+    catch(e){const err=new Error(SMSG[e?.code]||e?.message||String(e));err.code=e?.code;throw err}}
   if(!key)throw new Error('⑤ 내보내기·설정 탭에서 API 키를 먼저 입력하세요.');
   if(!model)throw new Error('⑤ 내보내기·설정 탭에서 [모델 목록 불러오기]로 모델을 고르세요.');
   let r,j;
@@ -569,8 +587,8 @@ async function loadModels(){const{provider:p,key}=S.cfg.ai;if(!key)return $('#ai
     if(!ids.includes(S.cfg.ai.model))S.cfg.ai.model=ids[0];
     renderModelSel();save();$('#aimsg').textContent=`모델 ${ids.length}개 · 선택: ${S.cfg.ai.model}`})}
   catch(e){$('#aimsg').textContent='❌ '+e.message}}
-async function testAI(){const m=S.cfg.ai.model;try{const r=await timed($('#aimsg'),`${m} 테스트 중…`,()=>callAI('연결 테스트입니다. "확인"이라고만 답하세요.',20,30000));
-  const k=S.cfg.ai.provider+':'+m;S.cfg.ai.ok=[...new Set([...(S.cfg.ai.ok||[]),k])];renderModelSel();save();$('#aimsg').textContent='✅ 연결 성공 ('+m+'): '+r.slice(0,30)}
+async function testAI(){const m=S.cfg.ai.provider==='claudesub'?'Claude 구독('+$('#aitier').selectedOptions[0].textContent+')':S.cfg.ai.model;try{const r=await timed($('#aimsg'),`${m} 테스트 중…`,()=>callAI('연결 테스트입니다. "확인"이라고만 답하세요.',20,30000));
+  const k=S.cfg.ai.provider+':'+S.cfg.ai.model;S.cfg.ai.ok=[...new Set([...(S.cfg.ai.ok||[]),k])];renderModelSel();save();$('#aimsg').textContent='✅ 연결 성공 ('+m+'): '+r.slice(0,30)}
   catch(e){$('#aimsg').textContent='❌ '+m+': '+e.message}}
 function trimPrompt(text,target){return`너는 대한민국 고등학교 교사의 학교생활기록부 '세부능력 및 특기사항' 문장 편집을 돕는다. 아래 원문을 다음 조건에 맞게 다듬어라.
 - 목표 분량: 나이스 기준 ${target}바이트 이하, 가능하면 ${Math.round(target*.9)}바이트 이상 (한글 1자=3바이트, 영문·숫자·공백·문장부호=1바이트). 원문은 ${bytes(text)}바이트임.
@@ -580,6 +598,12 @@ ${RULES()}
 
 원문:
 ${text}`}
+function batchPrompt(items,target){return trimPrompt('',target).replace(/\n원문:\n[\s\S]*$/,'').replace(/ 원문은 \d+바이트임\./,'')+`
+- 여러 학생의 세특을 각각 따로 다듬어라. 원문 바이트 수는 학생마다 다르다.
+- 출력은 다른 설명 없이 JSON 배열만: [{"id":0,"text":"다듬은 문장"}]
+
+원문(JSON):
+${JSON.stringify(items)}`}
 const anon=(t,s)=>s.name?t.split(s.name).join('학생'):t;
 function aiOne(){const s=curS(),t=$('#ftext').value;if(!t.trim())return toast('다듬을 문장이 없습니다.');
   $('#ai-who').textContent=`${s.cls} ${s.name}`;$('#ai-orig').value=t;$('#ai-ob').textContent=`(${bytes(t)}바이트)`;
@@ -592,9 +616,15 @@ $('#ai-cancel').onclick=()=>$('#aimodal').classList.remove('on');
 $('#ai-apply').onclick=()=>{const v=$('#ai-res').value.trim();if(!v)return;ed(UI.sel).final=v;$('#aimodal').classList.remove('on');renderDetail()};
 async function aiBatch(){const lim=S.cfg.byteLimit,list=filtered().filter(s=>bytes(finalText(s))>lim);
   if(!list.length)return toast('바이트를 초과한 학생이 없습니다.');
-  if(!confirm(`초과 학생 ${list.length}명을 AI로 다듬어 바로 적용합니다. (학생별 [자동 문장으로 되돌리기]로 복구 가능) 계속할까요?`))return;
+  if(!await ask(`초과 학생 ${list.length}명을 AI로 다듬어 바로 적용합니다. (학생별 [자동 문장으로 되돌리기]로 복구 가능) 계속할까요?`))return;
   let ok=0,fail=0;
-  for(const s of list){$('#status').textContent=`AI 처리 중 ${ok+fail+1}/${list.length}…`;
+  if(S.cfg.ai.provider==='claudesub'){
+    for(let c=0;c<list.length;c+=6){const chunk=list.slice(c,c+6);$('#status').textContent=`Claude 처리 중 ${c+1}~${c+chunk.length}/${list.length}…`;
+      try{const r=await callAI(batchPrompt(chunk.map((s,i)=>({id:i,text:anon(finalText(s),s)})),lim),8000);
+        const arr=JSON.parse(r.slice(r.indexOf('['),r.lastIndexOf(']')+1));
+        for(const x of arr){const s=chunk[+x.id];if(s&&x.text){ed(s.key).final=String(x.text).trim();ok++}}fail+=chunk.length-arr.filter(x=>chunk[+x.id]&&x.text).length}
+      catch(e){fail+=chunk.length;notice('오류: '+e.message);if(e.code&&e.code!=='upstream_error')break}}}
+  else for(const s of list){$('#status').textContent=`AI 처리 중 ${ok+fail+1}/${list.length}…`;
     try{ed(s.key).final=await callAI(trimPrompt(anon(finalText(s),s),lim));ok++}catch(e){fail++;if(fail===1)toast('오류: '+e.message)}}
   fhStatus();toast(`완료 ${ok}명, 실패 ${fail}명`);renderList();renderDetail();save()}
 let AIADD=[];
@@ -632,16 +662,18 @@ function exportXlsx(){if(!ST.length)return toast('학생 데이터가 없습니�
   const wb=XLSX.utils.book_new();
   if($('#splitcls').checked){const used=new Set();for(const c of [...new Set(ST.map(s=>s.cls))]){let n=c.replace(/[\[\]:*?\/\\]/g,'_').slice(0,31)||'시트';while(used.has(n))n=n.slice(0,29)+'_'+used.size;used.add(n);XLSX.utils.book_append_sheet(wb,mk(ST.filter(s=>s.cls===c)),n)}}
   else XLSX.utils.book_append_sheet(wb,mk(ST),'세특');
-  XLSX.writeFile(wb,`세특_${S.cfg.subject||''}_${today()}.xlsx`)}
-function saveProject(){download(`세특_작업백업_${today()}.json`,new Blob([JSON.stringify(projectData())],{type:'application/json'}))}
-$('#loadproj').onchange=async e=>{const f=e.target.files[0];e.target.value='';if(!f)return;let d;try{d=JSON.parse(await f.text())}catch(_){return alert('JSON을 읽지 못했습니다.')}
-  if(d.type!=='seteuk-project')return alert('작업 백업 파일이 아닙니다.');applyProject(d);toast('불러왔습니다.')};
-function resetEdits(){if(confirm('모든 학생의 단계·문장 수정 내용을 초기화할까요?')){S.edits={};recompute();renderAll();save()}}
-function resetAll(){if(confirm('업로드한 데이터와 항목 설정, 학생 작업을 모두 지웁니다(문장 은행은 유지). 계속할까요?')){const key=S.cfg.ai.key,ai=S.cfg.ai,subject=S.cfg.subject;S.book=null;S.cfg=defaultCfg();S.cfg.ai=ai;S.cfg.ai.key=key;S.cfg.subject=subject;S.edits={};UI.sel=null;rebuild();renderAll();save()}}
-function renderSettings(){$('#blimit').value=S.cfg.byteLimit;$('#sep').value=S.cfg.sep;$('#aiprov').value=S.cfg.ai.provider;renderModelSel();$('#aikey').value=S.cfg.ai.key;$('#subj').value=S.cfg.subject}
+  saveOut(`세특_${S.cfg.subject||''}_${today()}.xlsx`,wbBlob(wb))}
+function saveProject(){saveOut(`세특_작업백업_${today()}.json`,new Blob([JSON.stringify(projectData())],{type:'application/json'}))}
+$('#loadproj').onchange=async e=>{const f=e.target.files[0];e.target.value='';if(!f)return;let d;try{d=JSON.parse(await f.text())}catch(_){return notice('JSON을 읽지 못했습니다.')}
+  if(d.type!=='seteuk-project')return notice('작업 백업 파일이 아닙니다.');applyProject(d);toast('불러왔습니다.')};
+async function resetEdits(){if(await ask('모든 학생의 단계·문장 수정 내용을 초기화할까요?')){S.edits={};recompute();renderAll();save()}}
+async function resetAll(){if(await ask('업로드한 데이터와 항목 설정, 학생 작업을 모두 지웁니다(문장 은행은 유지). 계속할까요?')){const key=S.cfg.ai.key,ai=S.cfg.ai,subject=S.cfg.subject;S.book=null;S.cfg=defaultCfg();S.cfg.ai=ai;S.cfg.ai.key=key;S.cfg.subject=subject;S.edits={};UI.sel=null;rebuild();renderAll();save()}}
+function renderSettings(){$('#blimit').value=S.cfg.byteLimit;$('#sep').value=S.cfg.sep;$('#aiprov').value=S.cfg.ai.provider;renderModelSel();$('#aitier').value=S.cfg.ai.tier||'default';const sub=S.cfg.ai.provider==='claudesub';
+  ['#aikeywrap','#aimodelwrap','#aikeynote'].forEach(x=>$(x).classList.toggle('hide',sub));['#aitierwrap','#aisubnote'].forEach(x=>$(x).classList.toggle('hide',!sub));$('#aikey').value=S.cfg.ai.key;$('#subj').value=S.cfg.subject}
 $('#blimit').onchange=e=>{S.cfg.byteLimit=+e.target.value||1500;renderWork();save()};
 $('#sep').onchange=e=>{S.cfg.sep=e.target.value;renderWork();save()};
 $('#aiprov').onchange=e=>{S.cfg.ai.provider=e.target.value;S.cfg.ai.model='';$('#aimsg').textContent='';renderSettings();save()};
+$('#aitier').onchange=e=>{S.cfg.ai.tier=e.target.value;save()};
 $('#aimodel').onchange=e=>{S.cfg.ai.model=e.target.value.trim();save()};
 $('#aikey').onchange=e=>{S.cfg.ai.key=e.target.value.trim();try{localStorage.setItem(AIKEY_KEY,S.cfg.ai.key)}catch(_){}};
 $('#subj').onchange=e=>{S.cfg.subject=e.target.value.trim();renderAll();save()};
@@ -652,8 +684,11 @@ document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>{UI.tab=b.dat
   document.querySelectorAll('main section').forEach(s=>s.classList.toggle('on',s.id==='t-'+UI.tab));
   if(UI.tab==='items')renderItems();if(UI.tab==='work')renderWork();if(UI.tab==='bank')renderBank()});
 function renderAll(){renderSheets();renderBank();renderItems();renderWork();renderSettings()}
-if(!window.XLSX)alert('엑셀 라이브러리를 불러오지 못했습니다. 인터넷 연결을 확인하세요.');
+if(!window.XLSX)notice('엑셀 라이브러리를 불러오지 못했습니다. 인터넷 연결을 확인하세요.');
 loadLocal();rebuild();renderAll();
+if(IN_CLAUDE){$('#fscard').classList.add('hide');$('#relink').classList.add('hide');
+  claude.use('downloads').then(d=>{DL=d}).catch(()=>{});
+  claude.use('sample').then(sm=>{SAMPLE=sm;if(sm&&!S.cfg.ai.key&&S.cfg.ai.provider!=='claudesub'){S.cfg.ai.provider='claudesub';renderSettings();save()}}).catch(()=>{})}
 </script>
 </body>
 </html>
