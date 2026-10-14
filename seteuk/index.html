@@ -101,7 +101,7 @@ th{background:var(--th);position:sticky;top:0}
     <h3>🤖 기존 세특으로 문장 추가 (AI 분류)</h3>
     <p class="sub">예전에 쓴 세특을 붙여넣으면 AI가 문장을 나누고 일반화해서 항목·단계로 분류합니다. 결과를 확인한 뒤 고른 것만 추가합니다. <b>학생 이름은 지우고 붙여넣으세요.</b></p>
     <textarea id="aiadd" rows="5" placeholder="기존 세특 원문을 붙여넣으세요 (여러 명 가능)"></textarea>
-    <div class="row" style="margin-top:6px">추가할 과목 <select id="aiaddsubj"><option value="공통">공통</option><option value="cur">현재 과목</option></select><button class="b p" onclick="aiClassify()">AI로 분류하기</button><span class="sub" id="aiaddmsg"></span></div>
+    <div class="row" style="margin-top:6px">추가할 과목 <select id="aiaddsubj"><option value="공통">공통</option><option value="cur">현재 과목</option></select><button class="b p" onclick="aiClassify()">AI로 분류하기</button><button class="b aichip" onclick="openAICfg()"></button><span class="sub" id="aiaddmsg"></span></div>
     <div id="aiaddres"></div>
   </div>
   <div class="card" style="padding:0"><div class="scroll" style="max-height:calc(100vh - 260px)"><table id="banktbl" style="width:100%"></table></div></div>
@@ -118,11 +118,14 @@ th{background:var(--th);position:sticky;top:0}
   <div class="card row">
     <select id="fcls"></select>
     <input id="fq" placeholder="이름/학번 검색" style="width:140px">
-    <label><input type="checkbox" id="fover"> 바이트 초과만</label>
+    <span class="row" style="gap:4px">분량 <select id="funit"><option value="c">자</option><option value="b">바이트</option></select>
+      <input type="number" id="fmin" placeholder="최소" style="width:72px">~<input type="number" id="fmax" placeholder="최대" style="width:72px">
+      <button class="b s" onclick="fltPreset('over')" title="바이트 제한을 넘은 학생">초과</button><button class="b s" onclick="fltPreset('short')" title="바이트 제한의 90% 미만인 학생">부족</button><button class="b s" onclick="fltPreset('')">해제</button></span>
     <label><input type="checkbox" id="flint"> 금지어 의심만</label>
     <span class="sub" id="wsum"></span>
     <span style="flex:1"></span>
-    <button class="b" onclick="aiBatch()">🤖 초과 학생 AI 일괄 다듬기</button>
+    <button class="b aichip" onclick="openAICfg()"></button>
+    <button class="b" onclick="aiBatch()" id="batchbtn">🤖 필터된 학생 AI 일괄 다듬기</button>
   </div>
   <div class="work">
     <div class="card" style="padding:0"><ul class="list" id="slist"></ul></div>
@@ -161,7 +164,28 @@ th{background:var(--th);position:sticky;top:0}
   </div>
   <div class="card">
     <h3>AI 설정</h3>
-    <div class="row">
+    <div class="row"><button class="b aichip" onclick="openAICfg()"></button><span class="sub">AI를 쓰는 화면마다 같은 버튼이 있습니다. 누르면 연결 창이 열립니다.</span></div>
+  </div>
+  <div class="card">
+    <div class="row"><button class="b" onclick="resetEdits()">학생별 수정 내용 모두 초기화</button><button class="b" onclick="resetAll()">전체 초기화 (문장 은행 제외)</button></div>
+  </div>
+</section>
+</main>
+
+<div class="modal" id="aimodal"><div class="box">
+  <div class="row"><h3 style="margin:0">🤖 AI 다듬기 <span class="sub" id="ai-who"></span></h3><span style="flex:1"></span><button class="b aichip" onclick="openAICfg()"></button></div>
+  <div class="sub" style="margin-top:6px">원문 <span id="ai-ob"></span></div>
+  <textarea id="ai-orig" rows="6" readonly></textarea>
+  <div class="sub" style="margin-top:6px">추가 요청 (선택) <span class="sub">예: 탐구 과정을 강조, 협업 내용은 줄이기</span></div>
+  <textarea id="ai-req" rows="2" placeholder="AI에게 더 전할 내용이 있으면 쓰세요."></textarea>
+  <div class="row" style="margin:8px 0">목표 바이트 <input type="number" id="ai-target" style="width:90px"><button class="b p" id="ai-run">실행</button><span id="ai-msg" class="sub"></span></div>
+  <div class="sub">결과 <span id="ai-rb"></span> (직접 수정 가능)</div>
+  <textarea id="ai-res" rows="6"></textarea>
+  <div class="row" style="margin-top:8px;justify-content:flex-end"><button class="b" id="ai-cancel">취소</button><button class="b p" id="ai-apply">적용</button></div>
+</div></div>
+<div class="modal" id="aicfg"><div class="box" style="max-width:760px">
+    <div class="row"><h3 style="margin:0">🔌 AI 연결</h3><span style="flex:1"></span><button class="b" onclick="closeAICfg()">닫기</button></div>
+    <div class="row" style="margin-top:10px">
       <select id="aiprov"><option value="claudesub">Claude 구독 (claude.ai에서 열 때, 키 불필요)</option><option value="gemini">Google Gemini</option><option value="claude">Anthropic Claude</option><option value="openai">OpenAI</option></select>
       <span id="aikeywrap" class="row">API 키 <input id="aikey" type="password" style="width:260px">
       <button class="b" onclick="loadModels()">모델 목록 불러오기</button></span>
@@ -171,21 +195,11 @@ th{background:var(--th);position:sticky;top:0}
       <button class="b" onclick="testAI()">연결 테스트</button><span class="sub" id="aimsg"></span></div>
     <p class="sub" id="aisubnote">Claude 구독 모드는 claude.ai에서 이 프로그램(아티팩트)을 열었을 때만 동작하며, 선생님의 Claude 사용량에서 차감됩니다. 처음 사용할 때 허용 창이 한 번 뜹니다.</p>
     <p class="sub" id="aikeynote">⭐추천: 빠르고 안정적인 모델 · (미리보기): 시험 버전이라 느리거나 막힐 수 있음 · (느림): 깊게 생각하는 모델 · ✅: 연결 테스트 성공. 응답이 60초 넘게 없으면 자동으로 중단됩니다.<br>API 키는 이 브라우저에만 저장되며 작업 파일·백업에는 포함되지 않습니다. AI에는 학생 이름을 '학생'으로 바꾼 문장만 전송됩니다. 지시문에 기재요령(기재 원칙·대체표현)이 함께 전달됩니다.</p>
-  </div>
-  <div class="card">
-    <div class="row"><button class="b" onclick="resetEdits()">학생별 수정 내용 모두 초기화</button><button class="b" onclick="resetAll()">전체 초기화 (문장 은행 제외)</button></div>
-  </div>
-</section>
-</main>
-
-<div class="modal" id="aimodal"><div class="box">
-  <h3 style="margin-top:0">🤖 AI 다듬기 <span class="sub" id="ai-who"></span></h3>
-  <div class="sub">원문 <span id="ai-ob"></span></div>
-  <textarea id="ai-orig" rows="6" readonly></textarea>
-  <div class="row" style="margin:8px 0">목표 바이트 <input type="number" id="ai-target" style="width:90px"><button class="b p" id="ai-run">실행</button><span id="ai-msg" class="sub"></span></div>
-  <div class="sub">결과 <span id="ai-rb"></span> (직접 수정 가능)</div>
-  <textarea id="ai-res" rows="6"></textarea>
-  <div class="row" style="margin-top:8px;justify-content:flex-end"><button class="b" id="ai-cancel">취소</button><button class="b p" id="ai-apply">적용</button></div>
+    <div id="aibusywrap" class="row" style="margin-top:6px;border-top:1px solid var(--line);padding-top:8px">
+      <label><input type="checkbox" id="aifb"> 과부하가 계속되면 ✅ 연결 성공 모델로 자동 전환</label>
+      <span>일괄 처리 간격 <input type="number" id="aigap" min="0" step="0.5" style="width:60px">초</span>
+    </div>
+    <p class="sub" id="aibusynote">요청이 몰려 실패(503·429 등)하면 3초, 8초, 15초 뒤 자동으로 다시 시도합니다. 그래도 안 되면 위 설정에 따라 다른 모델로 바꿔 처리합니다.</p>
 </div></div>
 <div class="modal" id="dlg"><div class="box" style="max-width:480px"><p id="dlg-msg" style="white-space:pre-line;margin-top:0"></p><div class="row" id="dlg-btns" style="justify-content:flex-end"></div></div></div>
 <div id="toast"></div>
@@ -228,7 +242,7 @@ function lint(t){let scratch=String(t||'');const out=[];
 function substPrompt(){return [...S.subst,...SUBST_BUILTIN].map(s=>s.words.join('/')+'→'+s.rep).join('; ')}
 
 /* ---------- 상태 ---------- */
-function defaultCfg(){return{sheets:{},items:{},order:[],byteLimit:1500,sep:' ',subject:'',ai:{provider:'gemini',model:'',key:'',tier:'default'}}}
+function defaultCfg(){return{sheets:{},items:{},order:[],byteLimit:1500,sep:' ',subject:'',ai:{provider:'gemini',model:'',key:'',tier:'default',fallback:true,gap:2,req:''},flt:{unit:'c',min:'',max:''}}}
 let S={book:null,cfg:defaultCfg(),edits:{},bank:[],subst:[]};
 let ST=[],C={lv:{},cyc:{}};
 const UI={tab:'load',sel:null};
@@ -480,22 +494,37 @@ async function toBank(i){const it=itemAt(i),n=$('#bk'+i).value||it.bank||it.labe
   it.bank=n;save();renderBank();toast('문장 은행에 저장했습니다.')}
 
 /* ---------- ④ 학생별 작업 ---------- */
-function filtered(){const c=$('#fcls').value,q=$('#fq').value.trim(),ov=$('#fover').checked,li=$('#flint').checked,lim=S.cfg.byteLimit;
-  return ST.filter(s=>(!c||s.cls===c)&&(!q||s.name.includes(q)||s.key.includes(q))&&(!ov||bytes(finalText(s))>lim)&&(!li||lint(finalText(s)).length))}
+const chars=t=>String(t||'').replace(/\r/g,'').length;
+const flt=()=>S.cfg.flt||(S.cfg.flt={unit:'c',min:'',max:''});
+const amount=t=>flt().unit==='b'?bytes(t):chars(t);
+function filtered(){const c=$('#fcls').value,q=$('#fq').value.trim(),li=$('#flint').checked,f=flt(),mn=f.min===''?null:+f.min,mx=f.max===''?null:+f.max;
+  return ST.filter(s=>{if(c&&s.cls!==c)return false;if(q&&!s.name.includes(q)&&!s.key.includes(q))return false;const t=finalText(s);
+    if(mn!=null||mx!=null){const a=amount(t);if(mn!=null&&a<mn)return false;if(mx!=null&&a>mx)return false}
+    return!li||lint(t).length})}
+function renderFlt(){const f=flt();$('#funit').value=f.unit;$('#fmin').value=f.min;$('#fmax').value=f.max}
+function fltPreset(k){const f=flt(),lim=S.cfg.byteLimit;
+  if(k==='over')Object.assign(f,{unit:'b',min:lim+1,max:''});else if(k==='short')Object.assign(f,{unit:'b',min:'',max:Math.floor(lim*.9)-1});else Object.assign(f,{min:'',max:''});
+  renderFlt();renderList();save()}
+['#funit','#fmin','#fmax'].forEach(id=>$(id).addEventListener('input',()=>{const f=flt();f.unit=$('#funit').value;f.min=$('#fmin').value;f.max=$('#fmax').value;renderList();save()}));
 function renderWork(){const cls=[...new Set(ST.map(s=>s.cls))],cur=$('#fcls').value;
   $('#fcls').innerHTML='<option value="">전체 학급</option>'+cls.map(c=>`<option${c===cur?' selected':''}>${esc(c)}</option>`).join('');
-  renderList();renderDetail()}
-function renderList(){const lim=S.cfg.byteLimit,list=filtered();let over=0,bad=0;
+  renderFlt();renderList();renderDetail()}
+function renderList(){const lim=S.cfg.byteLimit,list=filtered(),ub=flt().unit==='b';let over=0,bad=0;
   $('#slist').innerHTML=list.map(s=>{const t=finalText(s),b=bytes(t),l=lint(t).length;if(b>lim)over++;if(l)bad++;const e=S.edits[s.key];
-    return`<li class="${UI.sel===s.key?'sel':''}" onclick="selStudent(this.dataset.k)" data-k="${esc(s.key)}"><span>${esc(s.kraw||s.cls)} ${esc(s.name)}${e?.final!=null?' ✎':''}${l?' ⚠':''}</span><span class="badge ${b>lim?'bad':b?'ok':''}">${b}</span></li>`}).join('')||'<li class="sub">학생이 없습니다.</li>';
-  $('#wsum').textContent=`${list.length}명 · 초과 ${over}명 · 금지어 의심 ${bad}명`}
+    return`<li class="${UI.sel===s.key?'sel':''}" onclick="selStudent(this.dataset.k)" data-k="${esc(s.key)}"><span>${esc(s.kraw||s.cls)} ${esc(s.name)}${e?.final!=null?' ✎':''}${l?' ⚠':''}</span><span class="badge ${b>lim?'bad':b?'ok':''}" title="${b}바이트 · ${chars(t)}자">${ub?b:chars(t)+'자'}</span></li>`}).join('')||'<li class="sub">학생이 없습니다.</li>';
+  $('#wsum').textContent=`${list.length}명 · 초과 ${over}명 · 금지어 의심 ${bad}명`;$('#batchbtn').textContent=`🤖 필터된 학생 AI 일괄 다듬기 (${list.length}명)`}
 function selStudent(k){UI.sel=k;renderList();renderDetail()}
 const curS=()=>ST.find(s=>s.key===UI.sel);
 function renderDetail(){const s=curS(),box=$('#detail');if(!s){box.innerHTML='<p class="sub">왼쪽에서 학생을 선택하세요.</p>';return}
   const e=S.edits[s.key]||{},hs=activeItems();
   box.innerHTML=`<div class="row"><h3 style="margin:0">${esc(s.name)}</h3><span class="sub">${esc(s.cls)} ${esc(s.kraw)}</span></div>
+  <h4 style="margin:12px 0 6px">최종 세특 <span id="fbytes"></span></h4>
+  <div id="fnote"></div><div id="lintbox"></div>
+  <textarea id="ftext" class="final" oninput="setFinal(this.value)"></textarea>
+  <div class="row" style="margin-top:6px"><input id="freq" placeholder="AI 추가 요청 (선택) 예: 탐구 과정을 강조, 협업 내용은 줄이기" style="flex:1;min-width:220px" value="${esc(S.cfg.ai.req||'')}" oninput="S.cfg.ai.req=this.value;save()"></div>
+  <div class="row" style="margin-top:6px"><button class="b p" onclick="aiOne()">🤖 AI로 다듬기</button><button class="b aichip" onclick="openAICfg()"></button><span style="flex:1"></span><button class="b" onclick="resetFinal()">자동 문장으로 되돌리기</button><button class="b" onclick="resetStudent()">이 학생 수정 모두 초기화</button></div>
   ${refMemo(s)}
-  <h4 style="margin:12px 0 6px">항목별 문장</h4>
+  <h4 style="margin:16px 0 6px">항목별 문장 <span class="sub">(최종 세특을 직접 고치지 않았다면 자동 반영)</span></h4>
   ${hs.map((h,i)=>{const auto=C.lv[h]?.[s.key],lv=levelOf(s,h),ov=e.sent?.[h]!=null,txt=sentenceFor(s,h);
     return`<div class="irow ${txt?'':'omit'}"><div class="row"><b>${esc(S.cfg.items[h].label)}</b>
       <span class="sub">점수 ${esc(s.scores[h]??'-')}</span>
@@ -504,12 +533,8 @@ function renderDetail(){const s=curS(),box=$('#detail');if(!s){box.innerHTML='<p
       <button class="b s" onclick="shuffle(${i})" title="같은 단계의 다른 문장">🔄 다른 문장</button>
       ${ov?`<span class="badge warn">문장 수정됨</span><button class="b s" onclick="resetSent(${i})">되돌리기</button>`:''}</div>
       <textarea rows="2" oninput="setSent(${i},this.value)" placeholder="${lv==null?'점수 없음':'문장 생략됨 (직접 입력 가능)'}">${esc(txt)}</textarea></div>`}).join('')||'<p class="sub">사용 중인 항목이 없습니다.</p>'}
-  <div class="irow"><b>추가 문장</b> <span class="sub">(마지막에 덧붙음)</span><textarea rows="2" oninput="setExtra(this.value)">${esc(e.extra||'')}</textarea></div>
-  <h4 style="margin:12px 0 6px">최종 세특 <span id="fbytes"></span></h4>
-  <div id="fnote"></div><div id="lintbox"></div>
-  <textarea id="ftext" class="final" oninput="setFinal(this.value)"></textarea>
-  <div class="row" style="margin-top:6px"><button class="b p" onclick="aiOne()">🤖 AI로 바이트 맞춰 다듬기</button><button class="b" onclick="resetFinal()">자동 문장으로 되돌리기</button><button class="b" onclick="resetStudent()">이 학생 수정 모두 초기화</button></div>`;
-  $('#ftext').value=finalText(s);updFinal()}
+  <div class="irow"><b>추가 문장</b> <span class="sub">(마지막에 덧붙음)</span><textarea rows="2" oninput="setExtra(this.value)">${esc(e.extra||'')}</textarea></div>`;
+  $('#ftext').value=finalText(s);renderAIChip();updFinal()}
 function refMemo(s){if(!S.book)return'';let out='';
   for(const n of S.book.names){const sc=S.cfg.sheets[n];if(sc?.role!=='ref')continue;const hs=headers(n),mi=hs.indexOf(sc.matchCol);if(mi<0)continue;
     const want=sc.matchBy==='key'?s.kraw:s.name;if(!want)continue;
@@ -534,7 +559,7 @@ function shuffle(i){const e=ed(UI.sel),h=hAt(i);e.shift[h]=(e.shift[h]||0)+1;del
 function resetSent(i){delete ed(UI.sel).sent[hAt(i)];renderDetail()}
 function resetFinal(){ed(UI.sel).final=null;renderDetail()}
 async function resetStudent(){if(!await ask('이 학생의 단계·문장 수정을 모두 초기화할까요?'))return;delete S.edits[UI.sel];recompute();renderDetail()}
-['#fcls','#fq','#fover','#flint'].forEach(id=>$(id).addEventListener('input',renderList));
+['#fcls','#fq','#flint'].forEach(id=>$(id).addEventListener('input',renderList));
 
 /* ---------- AI ---------- */
 const RULES=()=>`[학교생활기록부 기재요령]
@@ -544,7 +569,11 @@ const RULES=()=>`[학교생활기록부 기재요령]
 - 다음 기재 유의어는 오른쪽 대체표현으로 바꿀 것: ${substPrompt()}`;
 async function fetchT(url,opt={},ms=60000){const c=new AbortController(),t=setTimeout(()=>c.abort(),ms);
   try{return await fetch(url,{...opt,signal:c.signal})}catch(e){if(e.name==='AbortError')throw new Error(`응답 없음(${ms/1000}초 초과). 다른 모델을 골라 보세요.`);throw new Error('네트워크 오류: '+e.message)}finally{clearTimeout(t)}}
-async function timed(el,label,fn){const t0=Date.now(),iv=setInterval(()=>{el.textContent=`${label} ${Math.round((Date.now()-t0)/1000)}초`},1000);el.textContent=label;try{return await fn()}finally{clearInterval(iv)}}
+const AIW={note:'',alt:null};   // note: 재시도 안내, alt: 과부하 때 임시로 바꾼 모델 {from,to,until}
+async function timed(el,label,fn){const t0=Date.now(),iv=setInterval(()=>{el.textContent=`${label} ${Math.round((Date.now()-t0)/1000)}초${AIW.note?' · '+AIW.note:''}`},1000);el.textContent=label;try{return await fn()}finally{clearInterval(iv)}}
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const BUSY_WAIT=[3,8,15];
+const isBusy=e=>[429,500,502,503,504,529].includes(e.status)||/overload|high demand|unavailable|try again later|rate limit|resource.?exhausted/i.test(e.message);
 const SMSG={not_granted:'Claude 사용을 허용하지 않았습니다. 페이지를 새로고침하면 다시 물어봅니다.',rate_limited:'Claude 사용량 한도에 걸렸거나 요청이 많습니다. 잠시 뒤 다시 시도하세요.',
   session_expired:'claude.ai에 다시 로그인하세요.',sampling_disabled:'이 계정에서는 Claude 호출을 쓸 수 없습니다.',refused:'Claude가 이 요청을 처리하지 않았습니다. 내용을 바꿔 보세요.',
   prompt_too_large:'보낼 내용이 너무 깁니다. 나눠서 하세요.',empty_completion:'응답이 비어 있습니다. 다시 시도하세요.',upstream_error:'일시적 오류입니다. 다시 시도하세요.',cancelled:'취소했습니다.'};
@@ -552,15 +581,36 @@ async function callAI(prompt,maxTokens=2000,ms=60000){const{provider:p,key,model
   if(p==='claudesub'){if(!SAMPLE)throw new Error(IN_CLAUDE?'Claude 연결을 준비 중입니다. 잠시 후 다시 시도하세요.':'Claude 구독 모드는 claude.ai에서 연 아티팩트에서만 됩니다. 다른 AI를 고르세요.');
     try{const r=await SAMPLE(prompt,{modelTier:S.cfg.ai.tier||'default',cache:false});return clean(r.text)}
     catch(e){const err=new Error(SMSG[e?.code]||e?.message||String(e));err.code=e?.code;throw err}}
-  if(!key)throw new Error('⑤ 내보내기·설정 탭에서 API 키를 먼저 입력하세요.');
-  if(!model)throw new Error('⑤ 내보내기·설정 탭에서 [모델 목록 불러오기]로 모델을 고르세요.');
-  let r,j;
+  if(!key||!model){openAICfg();throw new Error(!key?'API 키를 먼저 입력하세요.':'[모델 목록 불러오기]로 모델을 고르세요.')}
+  const alt=AIW.alt&&AIW.alt.from===model&&AIW.alt.until>Date.now()?AIW.alt.to:null;
+  const tryModel=async(m,waits)=>{const prev=$('#status').textContent;for(let i=0;;i++){try{const r=await callOnce(p,key,m,prompt,maxTokens,ms);markOk(m);return r}
+      catch(e){if(!isBusy(e)||i>=waits.length)throw e;
+        for(let t=waits[i];t>0;t--){AIW.note=`${m} 요청이 몰림, ${t}초 뒤 다시 시도(${i+1}/${waits.length})`;$('#status').textContent=AIW.note;await sleep(1000)}}
+      finally{if(AIW.note)$('#status').textContent=prev;AIW.note=''}}};
+  try{return await tryModel(alt||model,alt?[3]:BUSY_WAIT)}
+  catch(e){if(!isBusy(e)||S.cfg.ai.fallback===false)throw e;
+    const cands=(S.cfg.ai.ok||[]).filter(k=>k.startsWith(p+':')).map(k=>k.slice(p.length+1)).filter(m=>m!==model&&m!==alt);
+    for(const m of cands){try{const r=await tryModel(m,[3]);AIW.alt={from:model,to:m,until:Date.now()+600000};toast(`${model} 과부하로 ${m}(으)로 바꿔 처리했습니다.`);return r}catch(e2){if(!isBusy(e2))break}}
+    throw new Error(`요청이 몰려 처리하지 못했습니다(${e.message}). 잠시 뒤 다시 하거나 다른 모델을 고르세요.${cands.length?'':' (✅ 연결 성공 모델이 더 있으면 자동으로 바꿔 처리합니다)'}`)}}
+function markOk(m){const k=S.cfg.ai.provider+':'+m,ok=S.cfg.ai.ok||[];if(!ok.includes(k)){S.cfg.ai.ok=[...ok,k];save()}}
+async function callOnce(p,key,model,prompt,maxTokens,ms){let r,j;
+  const fail=()=>{const e=new Error(j?.error?.message||('HTTP '+r.status));e.status=r.status;return e};
+  const rd=async()=>{try{j=await r.json()}catch(_){j=null}};
   if(p==='gemini'){r=await fetchT(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contents:[{parts:[{text:prompt}]}]})},ms);
-    j=await r.json();if(!r.ok)throw new Error(j.error?.message||r.status);return clean((j.candidates?.[0]?.content?.parts||[]).map(x=>x.text||'').join(''))}
+    await rd();if(!r.ok)throw fail();return clean((j?.candidates?.[0]?.content?.parts||[]).map(x=>x.text||'').join(''))}
   if(p==='claude'){r=await fetchT('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model,max_tokens:maxTokens,messages:[{role:'user',content:prompt}]})},ms);
-    j=await r.json();if(!r.ok)throw new Error(j.error?.message||r.status);return clean((j.content||[]).map(x=>x.text||'').join(''))}
+    await rd();if(!r.ok)throw fail();return clean((j?.content||[]).map(x=>x.text||'').join(''))}
   r=await fetchT('https://api.openai.com/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+key},body:JSON.stringify({model,messages:[{role:'user',content:prompt}]})},ms);
-  j=await r.json();if(!r.ok)throw new Error(j.error?.message||r.status);return clean(j.choices?.[0]?.message?.content||'')}
+  await rd();if(!r.ok)throw fail();return clean(j?.choices?.[0]?.message?.content||'')}
+/* AI 연결 창·상태 버튼 */
+const PNAME={claudesub:'Claude 구독',gemini:'Gemini',claude:'Claude',openai:'OpenAI'};
+function aiReady(){const a=S.cfg.ai;return a.provider==='claudesub'?!!SAMPLE:!!(a.key&&a.model)}
+function renderAIChip(){const a=S.cfg.ai,r=aiReady(),ok=a.provider!=='claudesub'&&(a.ok||[]).includes(a.provider+':'+a.model);
+  const t=r?`🤖 ${PNAME[a.provider]}${a.provider==='claudesub'?'':' · '+a.model}${ok?' ✅':''}`:'🔌 AI 연결하기';
+  document.querySelectorAll('.aichip').forEach(b=>{b.textContent=t;b.title='AI 연결 설정 열기';b.classList.toggle('p',!r)})}
+function openAICfg(){renderSettings();$('#aicfg').classList.add('on')}
+function closeAICfg(){$('#aicfg').classList.remove('on');renderAIChip()}
+function needAI(){if(aiReady())return true;openAICfg();toast('먼저 AI를 연결하세요.');return false}
 const clean=t=>t.replace(/^```\w*\n?|```$/g,'').trim().replace(/^["'“]|["'”]$/g,'').trim();
 const mPreview=id=>/preview|exp|experimental|latest/.test(id),mSlow=id=>/pro|thinking|opus|deep|reasoning|^o\d/.test(id),
   mFast={gemini:/flash/,claude:/haiku|sonnet/,openai:/mini/};
@@ -573,7 +623,7 @@ function renderModelSel(){const ai=S.cfg.ai,list=ai.list?.provider===ai.provider
   sel.innerHTML=(list.length?'':'<option value="">먼저 [모델 목록 불러오기]를 누르세요</option>')+list.map((id,i)=>`<option value="${esc(id)}"${id===ai.model?' selected':''}>${esc(lab(id,i))}</option>`).join('')+`<option value="__custom"${custom?' selected':''}>직접 입력…</option>`;
   $('#aimodel').classList.toggle('hide',!custom);$('#aimodel').value=custom?ai.model:''}
 $('#aimodelsel').onchange=e=>{const v=e.target.value;if(v==='__custom'){$('#aimodel').classList.remove('hide');$('#aimodel').focus();return}
-  $('#aimodel').classList.add('hide');S.cfg.ai.model=v;$('#aimsg').textContent='';save()};
+  $('#aimodel').classList.add('hide');S.cfg.ai.model=v;$('#aimsg').textContent='';renderAIChip();save()};
 async function loadModels(){const{provider:p,key}=S.cfg.ai;if(!key)return $('#aimsg').textContent='API 키를 먼저 입력하세요.';
   try{await timed($('#aimsg'),'불러오는 중…',async()=>{let ids=[],r,j;
     if(p==='gemini'){r=await fetchT(`https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000&key=${encodeURIComponent(key)}`,{},30000);j=await r.json();if(!r.ok)throw new Error(j.error?.message||r.status);
@@ -585,16 +635,20 @@ async function loadModels(){const{provider:p,key}=S.cfg.ai;if(!key)return $('#ai
     if(!ids.length)throw new Error('사용 가능한 모델이 없습니다.');
     ids=rankModels(p,ids);S.cfg.ai.list={provider:p,ids};
     if(!ids.includes(S.cfg.ai.model))S.cfg.ai.model=ids[0];
-    renderModelSel();save();$('#aimsg').textContent=`모델 ${ids.length}개 · 선택: ${S.cfg.ai.model}`})}
+    renderModelSel();renderAIChip();save();$('#aimsg').textContent=`모델 ${ids.length}개 · 선택: ${S.cfg.ai.model}`})}
   catch(e){$('#aimsg').textContent='❌ '+e.message}}
-async function testAI(){const m=S.cfg.ai.provider==='claudesub'?'Claude 구독('+$('#aitier').selectedOptions[0].textContent+')':S.cfg.ai.model;try{const r=await timed($('#aimsg'),`${m} 테스트 중…`,()=>callAI('연결 테스트입니다. "확인"이라고만 답하세요.',20,30000));
-  const k=S.cfg.ai.provider+':'+S.cfg.ai.model;S.cfg.ai.ok=[...new Set([...(S.cfg.ai.ok||[]),k])];renderModelSel();save();$('#aimsg').textContent='✅ 연결 성공 ('+m+'): '+r.slice(0,30)}
-  catch(e){$('#aimsg').textContent='❌ '+m+': '+e.message}}
-function trimPrompt(text,target){return`너는 대한민국 고등학교 교사의 학교생활기록부 '세부능력 및 특기사항' 문장 편집을 돕는다. 아래 원문을 다음 조건에 맞게 다듬어라.
+async function testAI(){const m=S.cfg.ai.provider==='claudesub'?'Claude 구독('+$('#aitier').selectedOptions[0].textContent+')':S.cfg.ai.model;const q='연결 테스트입니다. "확인"이라고만 답하세요.',a=S.cfg.ai;
+  if(a.provider!=='claudesub'&&(!a.key||!a.model))return $('#aimsg').textContent=!a.key?'API 키를 먼저 입력하세요.':'[모델 목록 불러오기]로 모델을 고르세요.';
+  try{const r=await timed($('#aimsg'),`${m} 테스트 중…`,()=>a.provider==='claudesub'?callAI(q,20,30000):callOnce(a.provider,a.key,a.model,q,20,30000));
+  const k=S.cfg.ai.provider+':'+S.cfg.ai.model;S.cfg.ai.ok=[...new Set([...(S.cfg.ai.ok||[]),k])];renderModelSel();renderAIChip();save();$('#aimsg').textContent='✅ 연결 성공 ('+m+'): '+r.slice(0,30)}
+  catch(e){$('#aimsg').textContent='❌ '+m+': '+e.message+(isBusy(e)?' (요청이 몰린 상태입니다. 잠시 뒤 다시 하거나 다른 모델을 고르세요.)':'')}}
+const reqLine=req=>req&&req.trim()?`- 교사의 추가 요청(위 조건과 기재요령을 지키는 범위에서 반영할 것): ${req.trim().replace(/\s+/g,' ')}
+`:'';
+function trimPrompt(text,target,req=S.cfg.ai.req){return`너는 대한민국 고등학교 교사의 학교생활기록부 '세부능력 및 특기사항' 문장 편집을 돕는다. 아래 원문을 다음 조건에 맞게 다듬어라.
 - 목표 분량: 나이스 기준 ${target}바이트 이하, 가능하면 ${Math.round(target*.9)}바이트 이상 (한글 1자=3바이트, 영문·숫자·공백·문장부호=1바이트). 원문은 ${bytes(text)}바이트임.
 - 원문에 없는 사실, 활동, 수치를 새로 만들지 말 것. 늘려야 할 때는 원문 내용을 구체화하는 범위에서만 늘릴 것.
 - 설명 없이 다듬은 결과 문장만 출력할 것.
-${RULES()}
+${reqLine(req)}${RULES()}
 
 원문:
 ${text}`}
@@ -605,30 +659,40 @@ function batchPrompt(items,target){return trimPrompt('',target).replace(/\n원�
 원문(JSON):
 ${JSON.stringify(items)}`}
 const anon=(t,s)=>s.name?t.split(s.name).join('학생'):t;
-function aiOne(){const s=curS(),t=$('#ftext').value;if(!t.trim())return toast('다듬을 문장이 없습니다.');
+function aiOne(){const s=curS(),t=$('#ftext').value;if(!t.trim())return toast('다듬을 문장이 없습니다.');if(!needAI())return;$('#ai-req').value=S.cfg.ai.req||'';renderAIChip();
   $('#ai-who').textContent=`${s.cls} ${s.name}`;$('#ai-orig').value=t;$('#ai-ob').textContent=`(${bytes(t)}바이트)`;
   $('#ai-target').value=S.cfg.byteLimit;$('#ai-res').value='';$('#ai-rb').textContent='';$('#ai-msg').textContent='';$('#aimodal').classList.add('on')}
 $('#ai-run').onclick=async()=>{const s=curS();
-  try{const r=await timed($('#ai-msg'),'요청 중…',()=>callAI(trimPrompt(anon($('#ai-orig').value,s),+$('#ai-target').value||S.cfg.byteLimit)));$('#ai-res').value=r;$('#ai-res').dispatchEvent(new Event('input'));$('#ai-msg').textContent='완료'}
+  try{const r=await timed($('#ai-msg'),'요청 중…',()=>callAI(trimPrompt(anon($('#ai-orig').value,s),+$('#ai-target').value||S.cfg.byteLimit,$('#ai-req').value)));$('#ai-res').value=r;$('#ai-res').dispatchEvent(new Event('input'));$('#ai-msg').textContent='완료'}
   catch(e){$('#ai-msg').textContent='오류: '+e.message}};
 $('#ai-res').oninput=()=>{const v=$('#ai-res').value,b=bytes(v),t=+$('#ai-target').value,L=lint(v);$('#ai-rb').innerHTML=`<span class="badge ${b>t?'bad':'ok'}">${b}바이트</span>${L.length?` <span class="badge bad">⚠ ${esc(L.map(x=>x.w).join(', '))}</span>`:''}`};
+$('#ai-req').oninput=e=>{S.cfg.ai.req=e.target.value;const f=$('#freq');if(f)f.value=e.target.value;save()};
 $('#ai-cancel').onclick=()=>$('#aimodal').classList.remove('on');
 $('#ai-apply').onclick=()=>{const v=$('#ai-res').value.trim();if(!v)return;ed(UI.sel).final=v;$('#aimodal').classList.remove('on');renderDetail()};
-async function aiBatch(){const lim=S.cfg.byteLimit,list=filtered().filter(s=>bytes(finalText(s))>lim);
-  if(!list.length)return toast('바이트를 초과한 학생이 없습니다.');
-  if(!await ask(`초과 학생 ${list.length}명을 AI로 다듬어 바로 적용합니다. (학생별 [자동 문장으로 되돌리기]로 복구 가능) 계속할까요?`))return;
-  let ok=0,fail=0;
+async function aiBatch(){const lim=S.cfg.byteLimit,list=filtered().filter(s=>finalText(s).trim());
+  if(!list.length)return toast('필터에 해당하는 학생이 없습니다.');if(!needAI())return;
+  const req=(S.cfg.ai.req||'').trim(),gap=Math.max(0,+(S.cfg.ai.gap??2))*1000;
+  if(!await ask(`현재 필터에 걸린 학생 ${list.length}명을 AI로 다듬어 바로 적용합니다.
+· 목표: ${lim}바이트 이하 (가능하면 ${Math.round(lim*.9)}바이트 이상)
+· 추가 요청: ${req||'없음'}
+(학생별 [자동 문장으로 되돌리기]로 복구 가능) 계속할까요?`))return;
+  let ok=0,fail=0,busy=0;
   if(S.cfg.ai.provider==='claudesub'){
     for(let c=0;c<list.length;c+=6){const chunk=list.slice(c,c+6);$('#status').textContent=`Claude 처리 중 ${c+1}~${c+chunk.length}/${list.length}…`;
       try{const r=await callAI(batchPrompt(chunk.map((s,i)=>({id:i,text:anon(finalText(s),s)})),lim),8000);
         const arr=JSON.parse(r.slice(r.indexOf('['),r.lastIndexOf(']')+1));
         for(const x of arr){const s=chunk[+x.id];if(s&&x.text){ed(s.key).final=String(x.text).trim();ok++}}fail+=chunk.length-arr.filter(x=>chunk[+x.id]&&x.text).length}
       catch(e){fail+=chunk.length;notice('오류: '+e.message);if(e.code&&e.code!=='upstream_error')break}}}
-  else for(const s of list){$('#status').textContent=`AI 처리 중 ${ok+fail+1}/${list.length}…`;
-    try{ed(s.key).final=await callAI(trimPrompt(anon(finalText(s),s),lim));ok++}catch(e){fail++;if(fail===1)toast('오류: '+e.message)}}
-  fhStatus();toast(`완료 ${ok}명, 실패 ${fail}명`);renderList();renderDetail();save()}
+  else for(let i=0;i<list.length;i++){const s=list[i];$('#status').textContent=`AI 처리 중 ${i+1}/${list.length}…`;
+    if(i&&gap)await sleep(gap);
+    try{ed(s.key).final=await callAI(trimPrompt(anon(finalText(s),s),lim,req));ok++;busy=0;renderList();save()}
+    catch(e){fail++;if(isBusy(e)||/요청이 몰려/.test(e.message)){if(++busy>=3){if(!await ask(`요청이 몰려 ${busy}명 연속 실패했습니다.
+${e.message}
+
+계속할까요? (중단해도 지금까지 결과는 남습니다)`,'계속'))break;busy=0}}else if(fail===1)toast('오류: '+e.message)}}
+  $('#status').textContent='';fhStatus();toast(`완료 ${ok}명, 실패 ${fail}명`);renderList();renderDetail();save()}
 let AIADD=[];
-async function aiClassify(){let t=$('#aiadd').value.trim();if(!t)return toast('원문을 붙여넣으세요.');
+async function aiClassify(){let t=$('#aiadd').value.trim();if(!t)return toast('원문을 붙여넣으세요.');if(!needAI())return;
   for(const s of ST)if(s.name)t=t.split(s.name).join('학생');
   const items=[...new Set([...bankItems(),...presentItems().map(h=>S.cfg.items[h].label)])];
   $('#aiaddres').innerHTML='';
@@ -669,13 +733,16 @@ $('#loadproj').onchange=async e=>{const f=e.target.files[0];e.target.value='';if
 async function resetEdits(){if(await ask('모든 학생의 단계·문장 수정 내용을 초기화할까요?')){S.edits={};recompute();renderAll();save()}}
 async function resetAll(){if(await ask('업로드한 데이터와 항목 설정, 학생 작업을 모두 지웁니다(문장 은행은 유지). 계속할까요?')){const key=S.cfg.ai.key,ai=S.cfg.ai,subject=S.cfg.subject;S.book=null;S.cfg=defaultCfg();S.cfg.ai=ai;S.cfg.ai.key=key;S.cfg.subject=subject;S.edits={};UI.sel=null;rebuild();renderAll();save()}}
 function renderSettings(){$('#blimit').value=S.cfg.byteLimit;$('#sep').value=S.cfg.sep;$('#aiprov').value=S.cfg.ai.provider;renderModelSel();$('#aitier').value=S.cfg.ai.tier||'default';const sub=S.cfg.ai.provider==='claudesub';
-  ['#aikeywrap','#aimodelwrap','#aikeynote'].forEach(x=>$(x).classList.toggle('hide',sub));['#aitierwrap','#aisubnote'].forEach(x=>$(x).classList.toggle('hide',!sub));$('#aikey').value=S.cfg.ai.key;$('#subj').value=S.cfg.subject}
+  ['#aikeywrap','#aimodelwrap','#aikeynote'].forEach(x=>$(x).classList.toggle('hide',sub));['#aitierwrap','#aisubnote'].forEach(x=>$(x).classList.toggle('hide',!sub));$('#aikey').value=S.cfg.ai.key;$('#subj').value=S.cfg.subject;
+  $('#aifb').checked=S.cfg.ai.fallback!==false;$('#aigap').value=S.cfg.ai.gap??2;['#aibusywrap','#aibusynote'].forEach(x=>$(x).classList.toggle('hide',sub));renderAIChip()}
+$('#aifb').onchange=e=>{S.cfg.ai.fallback=e.target.checked;save()};
+$('#aigap').onchange=e=>{S.cfg.ai.gap=Math.max(0,+e.target.value||0);save()};
 $('#blimit').onchange=e=>{S.cfg.byteLimit=+e.target.value||1500;renderWork();save()};
 $('#sep').onchange=e=>{S.cfg.sep=e.target.value;renderWork();save()};
 $('#aiprov').onchange=e=>{S.cfg.ai.provider=e.target.value;S.cfg.ai.model='';$('#aimsg').textContent='';renderSettings();save()};
 $('#aitier').onchange=e=>{S.cfg.ai.tier=e.target.value;save()};
-$('#aimodel').onchange=e=>{S.cfg.ai.model=e.target.value.trim();save()};
-$('#aikey').onchange=e=>{S.cfg.ai.key=e.target.value.trim();try{localStorage.setItem(AIKEY_KEY,S.cfg.ai.key)}catch(_){}};
+$('#aimodel').onchange=e=>{S.cfg.ai.model=e.target.value.trim();renderAIChip();save()};
+$('#aikey').onchange=e=>{S.cfg.ai.key=e.target.value.trim();try{localStorage.setItem(AIKEY_KEY,S.cfg.ai.key)}catch(_){}renderAIChip()};
 $('#subj').onchange=e=>{S.cfg.subject=e.target.value.trim();renderAll();save()};
 
 /* ---------- 공통 ---------- */
@@ -688,7 +755,7 @@ if(!window.XLSX)notice('엑셀 라이브러리를 불러오지 못했습니다. 
 loadLocal();rebuild();renderAll();
 if(IN_CLAUDE){$('#fscard').classList.add('hide');$('#relink').classList.add('hide');
   claude.use('downloads').then(d=>{DL=d}).catch(()=>{});
-  claude.use('sample').then(sm=>{SAMPLE=sm;if(sm&&!S.cfg.ai.key&&S.cfg.ai.provider!=='claudesub'){S.cfg.ai.provider='claudesub';renderSettings();save()}}).catch(()=>{})}
+  claude.use('sample').then(sm=>{SAMPLE=sm;renderAIChip();if(sm&&!S.cfg.ai.key&&S.cfg.ai.provider!=='claudesub'){S.cfg.ai.provider='claudesub';renderSettings();save()}}).catch(()=>{})}
 </script>
 </body>
 </html>
