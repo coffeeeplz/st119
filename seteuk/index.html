@@ -57,6 +57,7 @@ th{background:var(--th);position:sticky;top:0}
 .hide{display:none}
 #banktbl td textarea{min-width:420px}
 #banktbl input{width:100%}
+.ptbl th,.ptbl td:nth-child(-n+4){white-space:nowrap}
 </style>
 </head>
 <body>
@@ -103,6 +104,12 @@ th{background:var(--th);position:sticky;top:0}
     <textarea id="aiadd" rows="5" placeholder="기존 세특 원문을 붙여넣으세요 (여러 명 가능)"></textarea>
     <div class="row" style="margin-top:6px">추가할 과목 <select id="aiaddsubj"><option value="공통">공통</option><option value="cur">현재 과목</option></select><button class="b p" onclick="aiClassify()">AI로 분류하기</button><button class="b aichip" onclick="openAICfg()"></button><span class="sub" id="aiaddmsg"></span></div>
     <div id="aiaddres"></div>
+  </div>
+  <div class="card">
+    <h3>📘 문제 정보 <span class="sub" id="probcnt"></span></h3>
+    <p class="sub">발표 문제 코드(예: 113 = 1번째 발표단원의 13번)별 정보입니다. 문장은행 엑셀의 「문제정보」 시트로 함께 불러오고 내보냅니다. 학생 엑셀 「코멘트 기록」의 코드와 연결되어 ④ 학생별 작업에 「발표한 문제」로 표시됩니다.</p>
+    <div class="row"><button class="b" onclick="addProb()">+ 문제 추가</button><input id="pq" placeholder="코드·내용 검색" style="width:140px"><span class="sub" id="probmatch"></span></div>
+    <div class="scroll" style="max-height:300px;margin-top:6px"><table id="probtbl" style="width:100%"></table></div>
   </div>
   <div class="card" style="padding:0"><div class="scroll" style="max-height:calc(100vh - 260px)"><table id="banktbl" style="width:100%"></table></div></div>
 </section>
@@ -201,6 +208,11 @@ th{background:var(--th);position:sticky;top:0}
     </div>
     <p class="sub" id="aibusynote">요청이 몰려 실패(503·429 등)하면 3초, 8초, 15초 뒤 자동으로 다시 시도합니다. 그래도 안 되면 위 설정에 따라 다른 모델로 바꿔 처리합니다.</p>
 </div></div>
+<div class="modal" id="probmodal"><div class="box">
+  <div class="row"><h3 style="margin:0">📘 문제 정보 편집</h3><span style="flex:1"></span><button class="b" onclick="delProb()">이 문제 삭제</button><button class="b p" onclick="closeProb()">닫기</button></div>
+  <p class="sub">「발표 시 드러나는 행동」에는 풀이를 발표하면 반드시 드러나는 행동만 적으세요. 나중에 AI가 세특 문장을 쓸 때 사실 근거로 씁니다.</p>
+  <div id="probform"></div>
+</div></div>
 <div class="modal" id="dlg"><div class="box" style="max-width:480px"><p id="dlg-msg" style="white-space:pre-line;margin-top:0"></p><div class="row" id="dlg-btns" style="justify-content:flex-end"></div></div></div>
 <div id="toast"></div>
 
@@ -243,22 +255,22 @@ function substPrompt(){return [...S.subst,...SUBST_BUILTIN].map(s=>s.words.join(
 
 /* ---------- 상태 ---------- */
 function defaultCfg(){return{sheets:{},items:{},order:[],byteLimit:1500,sep:' ',subject:'',ai:{provider:'gemini',model:'',key:'',tier:'default',fallback:true,gap:2,req:''},flt:{unit:'c',min:'',max:''}}}
-let S={book:null,cfg:defaultCfg(),edits:{},bank:[],subst:[]};
+let S={book:null,cfg:defaultCfg(),edits:{},bank:[],subst:[],probs:[]};
 let ST=[],C={lv:{},cyc:{}};
 const UI={tab:'load',sel:null};
 
 /* ---------- 저장 ---------- */
 function cfgNoKey(){return{...S.cfg,ai:{...S.cfg.ai,key:''}}}
-function projectData(){return{type:'seteuk-project',version:2,book:S.book,cfg:cfgNoKey(),edits:S.edits,bank:S.bank,subst:S.subst}}
+function projectData(){return{type:'seteuk-project',version:2,book:S.book,cfg:cfgNoKey(),edits:S.edits,bank:S.bank,subst:S.subst,probs:S.probs}}
 function applyProject(d){const key=S.cfg.ai.key;S.book=d.book||null;S.cfg=Object.assign(defaultCfg(),d.cfg);S.cfg.ai.key=key;S.edits=d.edits||{};
-  if(d.bank)S.bank=d.bank;if(d.subst)S.subst=d.subst;UI.sel=null;rebuild();renderAll();save(true)}
+  if(d.bank)S.bank=d.bank;if(d.subst)S.subst=d.subst;if(d.probs)S.probs=d.probs;UI.sel=null;rebuild();renderAll();save(true)}
 function save(skipFile){clearTimeout(save.t);save.t=setTimeout(()=>{
   try{localStorage.setItem(LS_KEY,JSON.stringify(projectData()))}catch(e){toast('브라우저 저장 실패: '+e.message)}
   try{if(S.book){const p=JSON.parse(localStorage.getItem(PRESET_KEY)||'{}');p[signature()]={sheets:S.cfg.sheets};localStorage.setItem(PRESET_KEY,JSON.stringify(p))}}catch(e){}
   if(!skipFile)writeFile();
 },400)}
 function loadLocal(){
-  try{const d=JSON.parse(localStorage.getItem(LS_KEY)||'null');if(d){S.book=d.book;S.cfg=Object.assign(defaultCfg(),d.cfg);S.edits=d.edits||{};S.bank=d.bank||[];S.subst=d.subst||[]}}catch(e){}
+  try{const d=JSON.parse(localStorage.getItem(LS_KEY)||'null');if(d){S.book=d.book;S.cfg=Object.assign(defaultCfg(),d.cfg);S.edits=d.edits||{};S.bank=d.bank||[];S.subst=d.subst||[];S.probs=d.probs||[]}}catch(e){}
   try{S.cfg.ai.key=localStorage.getItem(AIKEY_KEY)||''}catch(e){}
 }
 function signature(){return S.book.names.map(n=>n+':'+(S.book.sheets[n][0]||[]).join(',')).join('|')}
@@ -308,6 +320,7 @@ function autoDetect(n,headerRow=1){
 function colOf(n,role){const sc=S.cfg.sheets[n];return headers(n).findIndex(h=>sc.cols[h]===role)}
 function rebuild(){
   ST=[];if(!S.book){C={lv:{},cyc:{}};return}
+  for(const n of S.book.names){const sc=S.cfg.sheets[n];if(sc?.role==='ref'&&sc.probCol===undefined)sc.probCol=guessProbCol(n)}
   const map=new Map();
   for(const n of S.book.names){const sc=S.cfg.sheets[n];if(!sc||sc.role!=='score')continue;
     const hs=headers(n),ki=colOf(n,'key'),ni=colOf(n,'name'),ci=colOf(n,'class');
@@ -353,7 +366,8 @@ function ensureItems(){for(const h of scoreHeaders()){
 async function importBank(f){
   const wb=XLSX.read(await f.arrayBuffer(),{type:'array'});
   const name=wb.SheetNames.find(n=>n==='문장은행')||wb.SheetNames.find(n=>(XLSX.utils.sheet_to_json(wb.Sheets[n],{header:1})[0]||[]).includes('문장'));
-  if(!name)return notice('「문장」 열이 있는 시트를 찾지 못했습니다.');
+  const pmsg=wb.Sheets['문제정보']?importProbs(wb.Sheets['문제정보']):'';
+  if(!name){if(pmsg){renderBank();renderWork();save();return toast(pmsg)}return notice('「문장」 열이 있는 시트를 찾지 못했습니다.')}
   const pick=(r,...ks)=>{for(const k of ks)if(r[k]!==undefined&&r[k]!=='')return r[k];return''};
   const rows=XLSX.utils.sheet_to_json(wb.Sheets[name],{defval:''}).map(r=>({subj:String(pick(r,'과목')||'공통').trim(),item:String(pick(r,'항목')).trim(),
     from:+pick(r,'단계(부터)','부터')||1,to:+pick(r,'단계(까지)','까지')||10,text:String(pick(r,'문장')).trim(),src:String(pick(r,'출처')),note:String(pick(r,'비고'))})).filter(r=>r.item&&r.text);
@@ -361,11 +375,12 @@ async function importBank(f){
   if(replace||!S.bank.length)S.bank=rows;
   else{const k=r=>r.subj+'|'+r.item+'|'+r.text,have=new Set(S.bank.map(k));let n=0;for(const r of rows)if(!have.has(k(r))){S.bank.push(r);n++}toast(`${n}개 추가`)}
   if(wb.Sheets['대체표현'])S.subst=XLSX.utils.sheet_to_json(wb.Sheets['대체표현'],{header:1}).slice(1).filter(r=>r[0]&&r[1]).map(r=>({words:String(r[0]).split(/[,，]/).map(x=>x.trim()).filter(Boolean),rep:String(r[1]).trim()}));
-  renderBank();save();toast('문장 은행을 불러왔습니다.')}
+  renderBank();renderWork();save();toast('문장 은행을 불러왔습니다.'+(pmsg?' · '+pmsg:''))}
 $('#bankfile').onchange=async e=>{const f=e.target.files[0];if(f)try{await importBank(f)}catch(err){notice('읽지 못했습니다: '+err.message)}e.target.value=''};
 function exportBank(){const wb=XLSX.utils.book_new();
   const ws=XLSX.utils.aoa_to_sheet([['과목','항목','단계(부터)','단계(까지)','수준','문장','바이트','출처','비고'],...S.bank.map(r=>[r.subj,r.item,r.from,r.to,TIER(r.to),r.text,bytes(r.text),r.src||'',r.note||''])]);
   ws['!cols']=[{wch:12},{wch:26},{wch:9},{wch:9},{wch:6},{wch:90},{wch:7},{wch:20},{wch:20}];XLSX.utils.book_append_sheet(wb,ws,'문장은행');
+  if(S.probs.length)XLSX.utils.book_append_sheet(wb,probSheet(),'문제정보');
   const sub=S.subst.length?S.subst:SUBST_BUILTIN;const w2=XLSX.utils.aoa_to_sheet([['기재 유의어 (쉼표로 구분)','대체표현'],...sub.map(s=>[s.words.join(', '),s.rep])]);w2['!cols']=[{wch:90},{wch:24}];
   XLSX.utils.book_append_sheet(wb,w2,'대체표현');saveOut(`세특_문장은행_${today()}.xlsx`,wbBlob(wb))}
 function bankFiltered(){const fs=$('#bfs').value,fi=$('#bfi').value,q=$('#bfq').value.trim();
@@ -379,11 +394,60 @@ function renderBank(){const subs=[...new Set(S.bank.map(r=>r.subj))],its=[...new
     <td><input value="${esc(r.item)}" onchange="setBank(${i},'item',this.value)" style="width:170px"></td>
     <td style="white-space:nowrap"><input type="number" min="1" max="10" value="${r.from}" onchange="setBank(${i},'from',this.value)" style="width:48px">~<input type="number" min="1" max="10" value="${r.to}" onchange="setBank(${i},'to',this.value)" style="width:48px"></td>
     <td><textarea rows="2" onchange="setBank(${i},'text',this.value)">${esc(r.text)}</textarea>${r.src?`<div class="sub">${esc(r.src)}</div>`:''}</td>
-    <td>${bytes(r.text)}</td><td><button class="b s" onclick="delBank(${i})">삭제</button></td></tr>`).join('')}
+    <td>${bytes(r.text)}</td><td><button class="b s" onclick="delBank(${i})">삭제</button></td></tr>`).join('');renderProbs()}
 function setBank(i,k,v){S.bank[i][k]=(k==='from'||k==='to')?Math.max(1,Math.min(10,+v||1)):v.trim();save();if(k!=='text')renderBank()}
 function delBank(i){S.bank.splice(i,1);renderBank();save()}
 function addBankRow(){S.bank.unshift({subj:$('#bfs').value||'공통',item:$('#bfi').value||'새 항목',from:9,to:10,text:'',src:'직접 입력',note:''});$('#bfq').value='';renderBank();save()}
 ['#bfs','#bfi','#bfq'].forEach(id=>$(id).addEventListener('input',renderBank));
+
+/* ---------- 문제 정보 · 발표 문제 코드 ---------- */
+const PCOLS=['코드','과목','발표단원','대단원','중단원','출처','쪽','구분','소문항 수','문제 요약','핵심 개념','풀이 핵심 전략','어려운 지점','성취기준 코드','성취수준 근거','교과 역량','발표 시 드러나는 행동','세특 문장 예시','정답(검산)','검토','비고'];
+const PLONG=new Set(['문제 요약','핵심 개념','풀이 핵심 전략','어려운 지점','성취수준 근거','발표 시 드러나는 행동','세특 문장 예시']);
+const normSubj=v=>String(v||'').replace(/Ⅰ/g,'1').replace(/Ⅱ/g,'2').replace(/\s/g,'');
+const CODE_RE=/^\s*(\d{3}(?:\s*[,，·\/]\s*\d{3})*)(?!\d)\s*[-:.)]?\s*([\s\S]*)$/;   // 칸 맨 앞의 세 자리 코드(여러 개 가능) + 나머지는 메모
+function parseCodes(v){const m=String(v??'').match(CODE_RE);return m?{codes:m[1].split(/\D+/).filter(Boolean),memo:m[2].trim()}:null}
+function probFor(code){const c=String(code).trim(),cur=normSubj(S.cfg.subject);let m=S.probs.filter(p=>String(p['코드']).trim()===c);
+  if(cur&&S.probs.some(p=>normSubj(p['과목'])===cur))m=m.filter(p=>normSubj(p['과목'])===cur);return m[0]||null}
+function guessProbCol(n){const hs=headers(n),data=dataRows(n);let best='',bc=2;
+  hs.forEach((h,i)=>{const c=data.filter(r=>parseCodes(r[i])).length;if(c>bc){bc=c;best=h}});return best}
+function importProbs(ws){const rows=XLSX.utils.sheet_to_json(ws,{defval:''}).filter(r=>String(r['코드']).trim());
+  const k=r=>normSubj(r['과목'])+'|'+String(r['코드']).trim(),m=new Map(S.probs.map(p=>[k(p),p]));let add=0,upd=0;
+  for(const r of rows){for(const c in r)if(typeof r[c]==='string')r[c]=r[c].trim();r['코드']=String(r['코드']).trim();
+    if(m.has(k(r))){Object.assign(m.get(k(r)),r);upd++}else{S.probs.push(r);m.set(k(r),r);add++}}
+  return`문제정보 ${add}개 추가${upd?`, ${upd}개 갱신`:''}`}
+function probSheet(){const cols=[...PCOLS];S.probs.forEach(p=>Object.keys(p).forEach(c=>{if(!cols.includes(c))cols.push(c)}));
+  const ws=XLSX.utils.aoa_to_sheet([cols,...S.probs.map(p=>cols.map(c=>p[c]??''))]);ws['!cols']=cols.map(c=>({wch:PLONG.has(c)?50:/출처|단원|성취기준/.test(c)?20:8}));return ws}
+const fmtDate=v=>typeof v==='number'&&window.XLSX?XLSX.SSF.format('yyyy-mm-dd',v):String(v??'');
+function presented(s){const out=[];if(!S.book)return out;
+  for(const n of S.book.names){const sc=S.cfg.sheets[n];if(sc?.role!=='ref'||!sc.probCol)continue;const hs=headers(n),mi=hs.indexOf(sc.matchCol),pi=hs.indexOf(sc.probCol);if(mi<0||pi<0)continue;
+    const want=sc.matchBy==='key'?s.kraw:s.name;if(!want)continue;const di=hs.findIndex(h=>/날짜|일자/.test(h));
+    for(const r of dataRows(n)){if(String(r[mi]??'').trim()!==want)continue;const p=parseCodes(r[pi]);if(!p)continue;
+      for(const c of p.codes)out.push({code:c,memo:p.memo,date:di>=0?fmtDate(r[di]):'',info:probFor(c)})}}
+  return out}
+function probUse(){const cnt={},miss=new Set();for(const s of ST)for(const x of presented(s)){cnt[x.code]=(cnt[x.code]||0)+1;if(!x.info)miss.add(x.code)}return{cnt,miss:[...miss].sort()}}
+function renderProbs(){if(!$('#probtbl'))return;const q=$('#pq').value.trim(),U=probUse();
+  const L=S.probs.map((p,i)=>[p,i]).filter(([p])=>!q||Object.values(p).some(v=>String(v).includes(q))).sort((a,b)=>normSubj(a[0]['과목']).localeCompare(normSubj(b[0]['과목']))||(+a[0]['코드']||0)-(+b[0]['코드']||0));
+  $('#probcnt').textContent=`${S.probs.length}문제`+(q?` · 표시 ${L.length}`:'');
+  $('#probmatch').innerHTML=U.miss.length?`<span class="badge bad">⚠ 코멘트에는 있지만 정보가 없는 코드 ${U.miss.length}개</span> ${esc(U.miss.join(', '))}`:(Object.keys(U.cnt).length?'<span class="badge ok">코멘트의 모든 코드에 정보가 있습니다</span>':'');
+  $('#probtbl').innerHTML=`<tr><th>코드</th><th>과목</th><th>단원</th><th>구분</th><th>문제 요약</th><th>성취기준</th><th title="이 문제를 발표한 기록 수">발표</th><th>검토</th><th></th></tr>`+L.map(([p,i])=>`<tr>
+    <td><b>${esc(p['코드'])}</b></td><td>${esc(p['과목'])}</td><td>${esc(p['중단원']||p['대단원'])}</td><td>${esc(p['구분'])}</td><td>${esc(p['문제 요약'])}</td><td class="sub">${esc(p['성취기준 코드'])}</td>
+    <td>${U.cnt[String(p['코드']).trim()]||''}</td><td>${esc(p['검토'])}</td><td><button class="b s" onclick="editProb(${i})">편집</button></td></tr>`).join('')}
+$('#pq').addEventListener('input',renderProbs);
+function editProb(i){UI.prob=i;const p=S.probs[i];
+  $('#probform').innerHTML=PCOLS.concat(Object.keys(p).filter(c=>!PCOLS.includes(c))).map(c=>`<div style="margin:6px 0"><div class="sub"><b>${esc(c)}</b></div>${PLONG.has(c)
+    ?`<textarea rows="2" data-k="${esc(c)}" onchange="setProb(this.dataset.k,this.value)">${esc(p[c]??'')}</textarea>`
+    :`<input data-k="${esc(c)}" value="${esc(p[c]??'')}" onchange="setProb(this.dataset.k,this.value)" style="width:100%">`}</div>`).join('');
+  $('#probmodal').classList.add('on')}
+function setProb(k,v){S.probs[UI.prob][k]=v.trim();save()}
+function closeProb(){$('#probmodal').classList.remove('on');renderProbs();if(UI.tab==='work')renderDetail()}
+function addProb(){S.probs.push({'코드':'','과목':S.cfg.subject||''});editProb(S.probs.length-1)}
+async function delProb(){const p=S.probs[UI.prob];if(!await ask(`문제 ${p['코드']||'(코드 없음)'}의 정보를 삭제할까요?`,'삭제'))return;S.probs.splice(UI.prob,1);closeProb();save()}
+function probBox(s){const L=presented(s);if(!L.length)return'';const miss=L.filter(x=>!x.info).length;
+  return`<details open style="margin-top:8px"><summary><b>🎤 발표한 문제</b> <span class="sub">${L.length}건</span>${miss?` <span class="badge bad">⚠ 정보 없음 ${miss}건</span>`:''}</summary>
+  <div class="scroll" style="max-height:240px"><table class="ptbl" style="width:100%"><tr><th>코드</th><th>날짜</th><th>단원</th><th>구분</th><th>문제 요약</th><th>핵심 개념</th><th>메모</th></tr>${L.map(x=>{const p=x.info;
+    return`<tr><td><b>${esc(x.code)}</b></td><td class="sub">${esc(x.date)}</td>${p?`<td>${esc(p['중단원']||p['대단원'])}</td><td>${esc(p['구분'])}</td><td>${esc(p['문제 요약'])}</td><td>${esc(p['핵심 개념'])}</td>`
+      :`<td colspan="4"><span class="badge bad">⚠ 문제 정보 없음</span> <span class="sub">② 문장 은행 → 문제 정보에 추가하세요</span></td>`}<td>${esc(x.memo)}</td></tr>`}).join('')}</table></div></details>`}
+
 
 /* ---------- 단계 · 문장 ---------- */
 function autoLevels(h){const it=S.cfg.items[h],res={},groups={};
@@ -434,7 +498,9 @@ function renderSheets(){const box=$('#sheets');
       <div class="scroll"><table><tr><th>열</th><th>역할</th><th>예시 값</th></tr>${hs.map((h,ci)=>`<tr><td>${esc(h)}</td><td><select onchange="setCol(${si},${ci},this.value)">${[['none','사용 안 함'],['key','학번'],['name','이름'],['class','학급'],['score','점수']].map(([v,t])=>`<option value="${v}"${sc.cols[h]===v?' selected':''}>${t}</option>`).join('')}</select></td><td class="sub">${esc(data.slice(0,3).map(r=>r[ci]).join(', '))}</td></tr>`).join('')}</table></div>`;
     else if(sc.role==='ref')body=`<div class="row" style="margin:6px 0">학생 연결 열 <select onchange="setRef(${si},'matchCol',this.value)">${hs.map(h=>`<option${sc.matchCol===h?' selected':''}>${esc(h)}</option>`).join('')}</select>
       이 열의 값은 <select onchange="setRef(${si},'matchBy',this.value)"><option value="key"${sc.matchBy==='key'?' selected':''}>학번</option><option value="name"${sc.matchBy==='name'?' selected':''}>이름</option></select></div>
-      <div class="row">표시할 열: ${hs.map((h,ci)=>`<label><input type="checkbox"${(sc.show||[]).includes(h)?' checked':''} onchange="toggleShow(${si},${ci},this.checked)"> ${esc(h)}</label>`).join(' ')}</div>`;
+      <div class="row">표시할 열: ${hs.map((h,ci)=>`<label><input type="checkbox"${(sc.show||[]).includes(h)?' checked':''} onchange="toggleShow(${si},${ci},this.checked)"> ${esc(h)}</label>`).join(' ')}</div>
+      <div class="row" style="margin-top:6px">🎤 발표 문제 코드 열 <select onchange="setRef(${si},'probCol',this.value);renderSheets();renderWork()"><option value="">사용 안 함</option>${hs.map(h=>`<option${sc.probCol===h?' selected':''}>${esc(h)}</option>`).join('')}</select>
+        <span class="sub">${sc.probCol?probColStat(n):'칸이 세 자리 코드(예: 113, 104,113)로 시작하면 발표 문제로 읽고, 뒤에 적은 글은 메모로 씁니다.'}</span></div>`;
     return`<div class="card"><div class="row"><h3 style="margin:0">${esc(n)}</h3><span class="sub">${data.length}행</span>
       역할 <select onchange="setRole(${si},this.value)">${[['none','사용 안 함'],['score','점수 시트'],['ref','참고 시트']].map(([v,t])=>`<option value="${v}"${sc.role===v?' selected':''}>${t}</option>`).join('')}</select>
       제목 행 <input type="number" min="1" value="${sc.headerRow||1}" onchange="setHeaderRow(${si},this.value)" style="width:55px">
@@ -445,6 +511,8 @@ function setRole(si,v){S.cfg.sheets[S.book.names[si]].role=v;changed()}
 function setHeaderRow(si,v){autoDetect(S.book.names[si],Math.max(1,+v||1));changed()}
 function setCol(si,ci,v){const n=S.book.names[si];S.cfg.sheets[n].cols[headers(n)[ci]]=v;changed()}
 function setRef(si,k,v){S.cfg.sheets[S.book.names[si]][k]=v;save()}
+function probColStat(n){const sc=S.cfg.sheets[n],hs=headers(n),pi=hs.indexOf(sc.probCol);if(pi<0)return'';const codes=[];dataRows(n).forEach(r=>{const p=parseCodes(r[pi]);if(p)codes.push(...p.codes)});
+  const u=[...new Set(codes)],miss=u.filter(c=>!probFor(c));return`코드 ${codes.length}건(서로 다른 문제 ${u.length}개)`+(miss.length?` · ⚠ 정보 없는 코드 ${miss.length}개: ${miss.sort().join(', ')}`:' · 모두 문제 정보와 연결됨')}
 function toggleShow(si,ci,on){const n=S.book.names[si],sc=S.cfg.sheets[n],h=headers(n)[ci];sc.show=(sc.show||[]).filter(x=>x!==h);if(on)sc.show.push(h);save()}
 
 /* ---------- ③ 항목 설정 ---------- */
@@ -523,7 +591,7 @@ function renderDetail(){const s=curS(),box=$('#detail');if(!s){box.innerHTML='<p
   <textarea id="ftext" class="final" oninput="setFinal(this.value)"></textarea>
   <div class="row" style="margin-top:6px"><input id="freq" placeholder="AI 추가 요청 (선택) 예: 탐구 과정을 강조, 협업 내용은 줄이기" style="flex:1;min-width:220px" value="${esc(S.cfg.ai.req||'')}" oninput="S.cfg.ai.req=this.value;save()"></div>
   <div class="row" style="margin-top:6px"><button class="b p" onclick="aiOne()">🤖 AI로 다듬기</button><button class="b aichip" onclick="openAICfg()"></button><span style="flex:1"></span><button class="b" onclick="resetFinal()">자동 문장으로 되돌리기</button><button class="b" onclick="resetStudent()">이 학생 수정 모두 초기화</button></div>
-  ${refMemo(s)}
+  ${probBox(s)}${refMemo(s)}
   <h4 style="margin:16px 0 6px">항목별 문장 <span class="sub">(최종 세특을 직접 고치지 않았다면 자동 반영)</span></h4>
   ${hs.map((h,i)=>{const auto=C.lv[h]?.[s.key],lv=levelOf(s,h),ov=e.sent?.[h]!=null,txt=sentenceFor(s,h);
     return`<div class="irow ${txt?'':'omit'}"><div class="row"><b>${esc(S.cfg.items[h].label)}</b>
