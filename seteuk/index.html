@@ -57,6 +57,7 @@ th{background:var(--th);position:sticky;top:0}
 .hide{display:none}
 #banktbl td textarea{min-width:420px}
 #banktbl input{width:100%}
+.cardbox{white-space:pre-wrap;background:var(--grp);border:1px solid var(--line);border-radius:6px;padding:8px 10px;font-size:12.5px;line-height:1.6;margin:6px 0;max-height:320px;overflow:auto;font-family:inherit}
 .ptbl th,.ptbl td:nth-child(-n+4){white-space:nowrap}
 </style>
 </head>
@@ -132,7 +133,8 @@ th{background:var(--th);position:sticky;top:0}
     <span class="sub" id="wsum"></span>
     <span style="flex:1"></span>
     <button class="b aichip" onclick="openAICfg()"></button>
-    <button class="b" onclick="aiBatch()" id="batchbtn">🤖 필터된 학생 AI 일괄 다듬기</button>
+    <button class="b p" onclick="aiBatch('write')" id="batchwbtn">🤖 필터 학생 AI 세특 작성</button>
+    <button class="b" onclick="aiBatch()" id="batchbtn">필터 학생 AI 다듬기</button>
   </div>
   <div class="work">
     <div class="card" style="padding:0"><ul class="list" id="slist"></ul></div>
@@ -167,6 +169,8 @@ th{background:var(--th);position:sticky;top:0}
   <div class="card">
     <h3>기본 설정</h3>
     <div class="row">바이트 제한 <input type="number" id="blimit" style="width:90px"> <span class="sub">(나이스 기준: 한글 3, 영문·숫자·공백 1, 줄바꿈 2바이트)</span></div>
+    <div class="row" style="margin-top:6px">AI 세특 작성 목표 분량 <input type="number" id="tlo" min="50" max="100" style="width:60px">~<input type="number" id="thi" min="50" max="100" style="width:60px">% <span class="sub">(바이트 제한 기준. 나중에 직접 고칠 여유를 두려면 낮게)</span></div>
+    <div class="row" style="margin-top:6px">문제 발표 가중치: 기본 <input type="number" id="pwb" step="0.5" style="width:60px"> 도전 <input type="number" id="pwc" step="0.5" style="width:60px"> <span class="sub">(「문제발표 가중점수」 항목 계산에 사용)</span></div>
     <div class="row" style="margin-top:6px">문장 연결 <select id="sep"><option value=" ">띄어쓰기</option><option value="&#10;">줄바꿈</option><option value="">붙여쓰기</option></select></div>
   </div>
   <div class="card">
@@ -180,12 +184,12 @@ th{background:var(--th);position:sticky;top:0}
 </main>
 
 <div class="modal" id="aimodal"><div class="box">
-  <div class="row"><h3 style="margin:0">🤖 AI 다듬기 <span class="sub" id="ai-who"></span></h3><span style="flex:1"></span><button class="b aichip" onclick="openAICfg()"></button></div>
-  <div class="sub" style="margin-top:6px">원문 <span id="ai-ob"></span></div>
+  <div class="row"><h3 style="margin:0"><span id="ai-title">🤖 AI 다듬기</span> <span class="sub" id="ai-who"></span></h3><span style="flex:1"></span><button class="b aichip" onclick="openAICfg()"></button></div>
+  <div class="sub" style="margin-top:6px"><span id="ai-olabel">원문</span> <span id="ai-ob"></span></div>
   <textarea id="ai-orig" rows="6" readonly></textarea>
   <div class="sub" style="margin-top:6px">추가 요청 (선택) <span class="sub">예: 탐구 과정을 강조, 협업 내용은 줄이기</span></div>
   <textarea id="ai-req" rows="2" placeholder="AI에게 더 전할 내용이 있으면 쓰세요."></textarea>
-  <div class="row" style="margin:8px 0">목표 바이트 <input type="number" id="ai-target" style="width:90px"><button class="b p" id="ai-run">실행</button><span id="ai-msg" class="sub"></span></div>
+  <div class="row" style="margin:8px 0"><span id="ai-tlabel">목표 바이트</span> <input type="number" id="ai-target" style="width:90px"><button class="b p" id="ai-run">실행</button><span id="ai-msg" class="sub"></span></div>
   <div class="sub">결과 <span id="ai-rb"></span> (직접 수정 가능)</div>
   <textarea id="ai-res" rows="6"></textarea>
   <div class="row" style="margin-top:8px;justify-content:flex-end"><button class="b" id="ai-cancel">취소</button><button class="b p" id="ai-apply">적용</button></div>
@@ -251,7 +255,7 @@ function lint(t){let scratch=String(t||'');const out=[];
     if(re?re.test(scratch):scratch.includes(w)){out.push({w,rep});scratch=re?scratch.replace(new RegExp(re.source,'g'),'$1 '):scratch.split(w).join(' ')}}
   for(const m of new Set(scratch.match(/[A-Za-z][A-Za-z0-9+#.\-]*/g)||[]))out.push({w:m,rep:null});
   return out}
-function substPrompt(){return [...S.subst,...SUBST_BUILTIN].map(s=>s.words.join('/')+'→'+s.rep).join('; ')}
+function substPrompt(){const m=new Map();for(const {w,rep} of substList()){if(!m.has(rep))m.set(rep,[]);m.get(rep).push(w)}return[...m].map(([r,ws])=>ws.join('/')+'→'+r).join('; ')}
 
 /* ---------- 상태 ---------- */
 function defaultCfg(){return{sheets:{},items:{},order:[],byteLimit:1500,sep:' ',subject:'',ai:{provider:'gemini',model:'',key:'',tier:'default',fallback:true,gap:2,req:''},flt:{unit:'c',min:'',max:''}}}
@@ -335,10 +339,11 @@ function rebuild(){
         if(sc.cols[h]==='score')s.scores[h]=isNum(r[i])?+r[i]:null});
     }}
   ST=[...map.values()].sort((a,b)=>a.cls.localeCompare(b.cls,'ko',{numeric:true})||a.key.localeCompare(b.key,'ko',{numeric:true}));
-  ensureItems();recompute();
+  calcPres();ensureItems();recompute();
 }
 function scoreHeaders(){const set=new Set();if(!S.book)return set;
-  for(const n of S.book.names){const sc=S.cfg.sheets[n];if(sc?.role==='score')headers(n).forEach(h=>{if(sc.cols[h]==='score')set.add(h)})}return set}
+  for(const n of S.book.names){const sc=S.cfg.sheets[n];if(sc?.role==='score')headers(n).forEach(h=>{if(sc.cols[h]==='score')set.add(h)})}
+  if(hasPres())VPK.forEach(k=>set.add(k));return set}
 function presentItems(){const p=scoreHeaders();return S.cfg.order.filter(h=>p.has(h))}
 function activeItems(){return presentItems().filter(h=>S.cfg.items[h].enabled)}
 
@@ -360,6 +365,7 @@ function defaultGroups(){return[
  {from:3,to:4,omit:false,sentences:'{항목} 활동에 참여하며 점차 발전하는 모습을 보임.'},
  {from:1,to:2,omit:true,sentences:''}]}
 function ensureItems(){for(const h of scoreHeaders()){
+  if(!S.cfg.items[h]&&VPK.includes(h))S.cfg.items[h]=vpItem(h);
   if(!S.cfg.items[h]){const inBank=bankItems().includes(h);
     S.cfg.items[h]={label:h,enabled:!/합계|총점|총계/.test(h),method:'relative',scope:'all',zeroOne:true,cuts:Array(11).fill(null),groups:inBank?groupsFromBank(h):defaultGroups(),pick:'random',bank:inBank?h:''}}
   if(!S.cfg.order.includes(h))S.cfg.order.push(h)}}
@@ -367,7 +373,7 @@ async function importBank(f){
   const wb=XLSX.read(await f.arrayBuffer(),{type:'array'});
   const name=wb.SheetNames.find(n=>n==='문장은행')||wb.SheetNames.find(n=>(XLSX.utils.sheet_to_json(wb.Sheets[n],{header:1})[0]||[]).includes('문장'));
   const pmsg=wb.Sheets['문제정보']?importProbs(wb.Sheets['문제정보']):'';
-  if(!name){if(pmsg){renderBank();renderWork();save();return toast(pmsg)}return notice('「문장」 열이 있는 시트를 찾지 못했습니다.')}
+  if(!name){if(pmsg){rebuild();renderAll();save();return toast(pmsg)}return notice('「문장」 열이 있는 시트를 찾지 못했습니다.')}
   const pick=(r,...ks)=>{for(const k of ks)if(r[k]!==undefined&&r[k]!=='')return r[k];return''};
   const rows=XLSX.utils.sheet_to_json(wb.Sheets[name],{defval:''}).map(r=>({subj:String(pick(r,'과목')||'공통').trim(),item:String(pick(r,'항목')).trim(),
     from:+pick(r,'단계(부터)','부터')||1,to:+pick(r,'단계(까지)','까지')||10,text:String(pick(r,'문장')).trim(),src:String(pick(r,'출처')),note:String(pick(r,'비고'))})).filter(r=>r.item&&r.text);
@@ -375,7 +381,7 @@ async function importBank(f){
   if(replace||!S.bank.length)S.bank=rows;
   else{const k=r=>r.subj+'|'+r.item+'|'+r.text,have=new Set(S.bank.map(k));let n=0;for(const r of rows)if(!have.has(k(r))){S.bank.push(r);n++}toast(`${n}개 추가`)}
   if(wb.Sheets['대체표현'])S.subst=XLSX.utils.sheet_to_json(wb.Sheets['대체표현'],{header:1}).slice(1).filter(r=>r[0]&&r[1]).map(r=>({words:String(r[0]).split(/[,，]/).map(x=>x.trim()).filter(Boolean),rep:String(r[1]).trim()}));
-  renderBank();renderWork();save();toast('문장 은행을 불러왔습니다.'+(pmsg?' · '+pmsg:''))}
+  rebuild();renderAll();save();toast('문장 은행을 불러왔습니다.'+(pmsg?' · '+pmsg:''))}
 $('#bankfile').onchange=async e=>{const f=e.target.files[0];if(f)try{await importBank(f)}catch(err){notice('읽지 못했습니다: '+err.message)}e.target.value=''};
 function exportBank(){const wb=XLSX.utils.book_new();
   const ws=XLSX.utils.aoa_to_sheet([['과목','항목','단계(부터)','단계(까지)','수준','문장','바이트','출처','비고'],...S.bank.map(r=>[r.subj,r.item,r.from,r.to,TIER(r.to),r.text,bytes(r.text),r.src||'',r.note||''])]);
@@ -401,8 +407,8 @@ function addBankRow(){S.bank.unshift({subj:$('#bfs').value||'공통',item:$('#bf
 ['#bfs','#bfi','#bfq'].forEach(id=>$(id).addEventListener('input',renderBank));
 
 /* ---------- 문제 정보 · 발표 문제 코드 ---------- */
-const PCOLS=['코드','과목','발표단원','대단원','중단원','출처','쪽','구분','소문항 수','문제 요약','핵심 개념','풀이 핵심 전략','어려운 지점','성취기준 코드','성취수준 근거','교과 역량','발표 시 드러나는 행동','세특 문장 예시','정답(검산)','검토','비고'];
-const PLONG=new Set(['문제 요약','핵심 개념','풀이 핵심 전략','어려운 지점','성취수준 근거','발표 시 드러나는 행동','세특 문장 예시']);
+const PCOLS=['코드','과목','발표단원','대단원','중단원','출처','쪽','구분','소문항 수','문제 요약','주제 구','핵심 개념','풀이 핵심 전략','어려운 지점','성취기준 코드','성취수준 근거','교과 역량','발표 시 드러나는 행동','세특 문장 예시','정답(검산)','검토','비고'];
+const PLONG=new Set(['문제 요약','주제 구','핵심 개념','풀이 핵심 전략','어려운 지점','성취수준 근거','발표 시 드러나는 행동','세특 문장 예시']);
 const normSubj=v=>String(v||'').replace(/Ⅰ/g,'1').replace(/Ⅱ/g,'2').replace(/\s/g,'');
 const CODE_RE=/^\s*(\d{3}(?:\s*[,，·\/]\s*\d{3})*)(?!\d)\s*[-:.)]?\s*([\s\S]*)$/;   // 칸 맨 앞의 세 자리 코드(여러 개 가능) + 나머지는 메모
 function parseCodes(v){const m=String(v??'').match(CODE_RE);return m?{codes:m[1].split(/\D+/).filter(Boolean),memo:m[2].trim()}:null}
@@ -439,13 +445,13 @@ function editProb(i){UI.prob=i;const p=S.probs[i];
     :`<input data-k="${esc(c)}" value="${esc(p[c]??'')}" onchange="setProb(this.dataset.k,this.value)" style="width:100%">`}</div>`).join('');
   $('#probmodal').classList.add('on')}
 function setProb(k,v){S.probs[UI.prob][k]=v.trim();save()}
-function closeProb(){$('#probmodal').classList.remove('on');renderProbs();if(UI.tab==='work')renderDetail()}
+function closeProb(){$('#probmodal').classList.remove('on');rebuild();renderProbs();if(UI.tab==='work')renderWork()}
 function addProb(){S.probs.push({'코드':'','과목':S.cfg.subject||''});editProb(S.probs.length-1)}
 async function delProb(){const p=S.probs[UI.prob];if(!await ask(`문제 ${p['코드']||'(코드 없음)'}의 정보를 삭제할까요?`,'삭제'))return;S.probs.splice(UI.prob,1);closeProb();save()}
-function probBox(s){const L=presented(s);if(!L.length)return'';const miss=L.filter(x=>!x.info).length;
+function probBox(s){const L=presented(s);if(!L.length)return'';const miss=L.filter(x=>!x.info).length,must=new Set(S.edits[s.key]?.must||[]);
   return`<details open style="margin-top:8px"><summary><b>🎤 발표한 문제</b> <span class="sub">${L.length}건</span>${miss?` <span class="badge bad">⚠ 정보 없음 ${miss}건</span>`:''}</summary>
-  <div class="scroll" style="max-height:240px"><table class="ptbl" style="width:100%"><tr><th>코드</th><th>날짜</th><th>단원</th><th>구분</th><th>문제 요약</th><th>핵심 개념</th><th>메모</th></tr>${L.map(x=>{const p=x.info;
-    return`<tr><td><b>${esc(x.code)}</b></td><td class="sub">${esc(x.date)}</td>${p?`<td>${esc(p['중단원']||p['대단원'])}</td><td>${esc(p['구분'])}</td><td>${esc(p['문제 요약'])}</td><td>${esc(p['핵심 개념'])}</td>`
+  <div class="scroll" style="max-height:240px"><table class="ptbl" style="width:100%"><tr><th title="AI 세특 작성 때 반드시 쓸 주제">필수</th><th>코드</th><th>날짜</th><th>단원</th><th>구분</th><th>문제 요약</th><th>핵심 개념</th><th>메모</th></tr>${L.map(x=>{const p=x.info;
+    return`<tr><td><input type="checkbox"${must.has(x.code)?' checked':''} onchange="toggleMust('${x.code}',this.checked)"></td><td><b>${esc(x.code)}</b></td><td class="sub">${esc(x.date)}</td>${p?`<td>${esc(p['중단원']||p['대단원'])}</td><td>${esc(p['구분'])}</td><td>${esc(p['문제 요약'])}</td><td>${esc(p['핵심 개념'])}</td>`
       :`<td colspan="4"><span class="badge bad">⚠ 문제 정보 없음</span> <span class="sub">② 문장 은행 → 문제 정보에 추가하세요</span></td>`}<td>${esc(x.memo)}</td></tr>`}).join('')}</table></div></details>`}
 
 
@@ -499,8 +505,9 @@ function renderSheets(){const box=$('#sheets');
     else if(sc.role==='ref')body=`<div class="row" style="margin:6px 0">학생 연결 열 <select onchange="setRef(${si},'matchCol',this.value)">${hs.map(h=>`<option${sc.matchCol===h?' selected':''}>${esc(h)}</option>`).join('')}</select>
       이 열의 값은 <select onchange="setRef(${si},'matchBy',this.value)"><option value="key"${sc.matchBy==='key'?' selected':''}>학번</option><option value="name"${sc.matchBy==='name'?' selected':''}>이름</option></select></div>
       <div class="row">표시할 열: ${hs.map((h,ci)=>`<label><input type="checkbox"${(sc.show||[]).includes(h)?' checked':''} onchange="toggleShow(${si},${ci},this.checked)"> ${esc(h)}</label>`).join(' ')}</div>
-      <div class="row" style="margin-top:6px">🎤 발표 문제 코드 열 <select onchange="setRef(${si},'probCol',this.value);renderSheets();renderWork()"><option value="">사용 안 함</option>${hs.map(h=>`<option${sc.probCol===h?' selected':''}>${esc(h)}</option>`).join('')}</select>
-        <span class="sub">${sc.probCol?probColStat(n):'칸이 세 자리 코드(예: 113, 104,113)로 시작하면 발표 문제로 읽고, 뒤에 적은 글은 메모로 씁니다.'}</span></div>`;
+      <div class="row" style="margin-top:6px">🎤 발표 문제 코드 열 <select onchange="setRef(${si},'probCol',this.value);changed()"><option value="">사용 안 함</option>${hs.map(h=>`<option${sc.probCol===h?' selected':''}>${esc(h)}</option>`).join('')}</select>
+        <span class="sub">${sc.probCol?probColStat(n):'칸이 세 자리 코드(예: 113, 104,113)로 시작하면 발표 문제로 읽고, 뒤에 적은 글은 메모로 씁니다.'}</span></div>
+      <div class="row" style="margin-top:6px">🗂 사실 카드에 넣을 열: ${hs.map((h,ci)=>`<label><input type="checkbox"${(sc.cardCols||[]).includes(h)?' checked':''} onchange="toggleCardCol(${si},${ci},this.checked)"> ${esc(h)}</label>`).join(' ')} <span class="sub">(보고서 내용 등. 학생 행의 값이 카드에 그대로 들어갑니다)</span></div>`;
     return`<div class="card"><div class="row"><h3 style="margin:0">${esc(n)}</h3><span class="sub">${data.length}행</span>
       역할 <select onchange="setRole(${si},this.value)">${[['none','사용 안 함'],['score','점수 시트'],['ref','참고 시트']].map(([v,t])=>`<option value="${v}"${sc.role===v?' selected':''}>${t}</option>`).join('')}</select>
       제목 행 <input type="number" min="1" value="${sc.headerRow||1}" onchange="setHeaderRow(${si},this.value)" style="width:55px">
@@ -513,6 +520,7 @@ function setCol(si,ci,v){const n=S.book.names[si];S.cfg.sheets[n].cols[headers(n
 function setRef(si,k,v){S.cfg.sheets[S.book.names[si]][k]=v;save()}
 function probColStat(n){const sc=S.cfg.sheets[n],hs=headers(n),pi=hs.indexOf(sc.probCol);if(pi<0)return'';const codes=[];dataRows(n).forEach(r=>{const p=parseCodes(r[pi]);if(p)codes.push(...p.codes)});
   const u=[...new Set(codes)],miss=u.filter(c=>!probFor(c));return`코드 ${codes.length}건(서로 다른 문제 ${u.length}개)`+(miss.length?` · ⚠ 정보 없는 코드 ${miss.length}개: ${miss.sort().join(', ')}`:' · 모두 문제 정보와 연결됨')}
+function toggleCardCol(si,ci,on){const n=S.book.names[si],sc=S.cfg.sheets[n],h=headers(n)[ci];sc.cardCols=(sc.cardCols||[]).filter(x=>x!==h);if(on)sc.cardCols.push(h);save()}
 function toggleShow(si,ci,on){const n=S.book.names[si],sc=S.cfg.sheets[n],h=headers(n)[ci];sc.show=(sc.show||[]).filter(x=>x!==h);if(on)sc.show.push(h);save()}
 
 /* ---------- ③ 항목 설정 ---------- */
@@ -526,6 +534,8 @@ function renderItems(){const box=$('#items'),hs=presentItems(),bi=bankItems();
       <label><input type="checkbox"${it.enabled?' checked':''} onchange="setIt(${i},'enabled',this.checked)"> 사용</label>
       <b>${esc(h)}</b> → 표시 이름 <input value="${esc(it.label)}" onchange="setIt(${i},'label',this.value)" style="width:180px">
       <span class="sub">점수 범위 ${vals.length?Math.min(...vals)+' ~ '+Math.max(...vals):'-'} · ${vals.length}명</span></div>
+    <div class="row" style="margin-top:6px">🗂 카드 설명 <input value="${esc(it.desc||'')}" placeholder="AI에게 이 항목이 무엇인지 알려 주는 설명 (예: 수업 중 자발적으로 발표한 횟수)" onchange="setIt(${i},'desc',this.value)" style="flex:1;min-width:240px">
+      <label><input type="checkbox"${it.card!==false?' checked':''} onchange="setIt(${i},'card',this.checked)"> 사실 카드에 넣기</label></div>
     <div class="row" style="margin-top:8px">단계 변환
       <select onchange="setIt(${i},'method',this.value)"><option value="relative"${it.method==='relative'?' selected':''}>상대평가(백분위)</option><option value="range"${it.method==='range'?' selected':''}>구간 직접 입력</option></select>
       ${it.method==='relative'?`기준 <select onchange="setIt(${i},'scope',this.value)"><option value="all"${it.scope==='all'?' selected':''}>전체 학생</option><option value="class"${it.scope==='class'?' selected':''}>학급별</option></select>`:''}
@@ -578,9 +588,9 @@ function renderWork(){const cls=[...new Set(ST.map(s=>s.cls))],cur=$('#fcls').va
   $('#fcls').innerHTML='<option value="">전체 학급</option>'+cls.map(c=>`<option${c===cur?' selected':''}>${esc(c)}</option>`).join('');
   renderFlt();renderList();renderDetail()}
 function renderList(){const lim=S.cfg.byteLimit,list=filtered(),ub=flt().unit==='b';let over=0,bad=0;
-  $('#slist').innerHTML=list.map(s=>{const t=finalText(s),b=bytes(t),l=lint(t).length;if(b>lim)over++;if(l)bad++;const e=S.edits[s.key];
+  $('#slist').innerHTML=list.map(s=>{const t=finalText(s),b=bytes(t),l=lint(t).length+qcheck(t,s).length;if(b>lim)over++;if(l)bad++;const e=S.edits[s.key];
     return`<li class="${UI.sel===s.key?'sel':''}" onclick="selStudent(this.dataset.k)" data-k="${esc(s.key)}"><span>${esc(s.kraw||s.cls)} ${esc(s.name)}${e?.final!=null?' ✎':''}${l?' ⚠':''}</span><span class="badge ${b>lim?'bad':b?'ok':''}" title="${b}바이트 · ${chars(t)}자">${ub?b:chars(t)+'자'}</span></li>`}).join('')||'<li class="sub">학생이 없습니다.</li>';
-  $('#wsum').textContent=`${list.length}명 · 초과 ${over}명 · 금지어 의심 ${bad}명`;$('#batchbtn').textContent=`🤖 필터된 학생 AI 일괄 다듬기 (${list.length}명)`}
+  $('#wsum').textContent=`${list.length}명 · 초과 ${over}명 · 점검 필요 ${bad}명`;$('#batchbtn').textContent=`필터 학생 AI 다듬기 (${list.length}명)`;$('#batchwbtn').textContent=`🤖 필터 학생 AI 세특 작성 (${list.length}명)`}
 function selStudent(k){UI.sel=k;renderList();renderDetail()}
 const curS=()=>ST.find(s=>s.key===UI.sel);
 function renderDetail(){const s=curS(),box=$('#detail');if(!s){box.innerHTML='<p class="sub">왼쪽에서 학생을 선택하세요.</p>';return}
@@ -590,9 +600,9 @@ function renderDetail(){const s=curS(),box=$('#detail');if(!s){box.innerHTML='<p
   <div id="fnote"></div><div id="lintbox"></div>
   <textarea id="ftext" class="final" oninput="setFinal(this.value)"></textarea>
   <div class="row" style="margin-top:6px"><input id="freq" placeholder="AI 추가 요청 (선택) 예: 탐구 과정을 강조, 협업 내용은 줄이기" style="flex:1;min-width:220px" value="${esc(S.cfg.ai.req||'')}" oninput="S.cfg.ai.req=this.value;save()"></div>
-  <div class="row" style="margin-top:6px"><button class="b p" onclick="aiOne()">🤖 AI로 다듬기</button><button class="b aichip" onclick="openAICfg()"></button><span style="flex:1"></span><button class="b" onclick="resetFinal()">자동 문장으로 되돌리기</button><button class="b" onclick="resetStudent()">이 학생 수정 모두 초기화</button></div>
-  ${probBox(s)}${refMemo(s)}
-  <h4 style="margin:16px 0 6px">항목별 문장 <span class="sub">(최종 세특을 직접 고치지 않았다면 자동 반영)</span></h4>
+  <div class="row" style="margin-top:6px"><button class="b p" onclick="aiWrite()">🤖 AI로 세특 작성</button><button class="b" onclick="aiOne()">AI로 다듬기</button><button class="b aichip" onclick="openAICfg()"></button><span style="flex:1"></span>${histSel(e)}<button class="b" onclick="resetFinal()">자동 문장으로 되돌리기</button><button class="b" onclick="resetStudent()">이 학생 수정 모두 초기화</button></div>
+  ${cardBox(s)}${probBox(s)}${refMemo(s)}
+  <h4 style="margin:16px 0 6px">항목별 문장 <span class="sub">(AI 없이 조합하는 초안 · 최종 세특을 직접 고치지 않았다면 자동 반영)</span></h4>
   ${hs.map((h,i)=>{const auto=C.lv[h]?.[s.key],lv=levelOf(s,h),ov=e.sent?.[h]!=null,txt=sentenceFor(s,h);
     return`<div class="irow ${txt?'':'omit'}"><div class="row"><b>${esc(S.cfg.items[h].label)}</b>
       <span class="sub">점수 ${esc(s.scores[h]??'-')}</span>
@@ -602,7 +612,7 @@ function renderDetail(){const s=curS(),box=$('#detail');if(!s){box.innerHTML='<p
       ${ov?`<span class="badge warn">문장 수정됨</span><button class="b s" onclick="resetSent(${i})">되돌리기</button>`:''}</div>
       <textarea rows="2" oninput="setSent(${i},this.value)" placeholder="${lv==null?'점수 없음':'문장 생략됨 (직접 입력 가능)'}">${esc(txt)}</textarea></div>`}).join('')||'<p class="sub">사용 중인 항목이 없습니다.</p>'}
   <div class="irow"><b>추가 문장</b> <span class="sub">(마지막에 덧붙음)</span><textarea rows="2" oninput="setExtra(this.value)">${esc(e.extra||'')}</textarea></div>`;
-  $('#ftext').value=finalText(s);renderAIChip();updFinal()}
+  $('#ftext').value=finalText(s);renderAIChip();updCard();updFinal()}
 function refMemo(s){if(!S.book)return'';let out='';
   for(const n of S.book.names){const sc=S.cfg.sheets[n];if(sc?.role!=='ref')continue;const hs=headers(n),mi=hs.indexOf(sc.matchCol);if(mi<0)continue;
     const want=sc.matchBy==='key'?s.kraw:s.name;if(!want)continue;
@@ -612,9 +622,10 @@ function refMemo(s){if(!S.book)return'';let out='';
   return out}
 function updFinal(){const s=curS();if(!s)return;const t=$('#ftext').value,b=bytes(t),lim=S.cfg.byteLimit;
   $('#fbytes').innerHTML=`<span class="badge ${b>lim?'bad':'ok'}">${b} / ${lim} 바이트</span> <span class="sub">(${t.length}자)</span>`;
-  $('#fnote').innerHTML=S.edits[s.key]?.final!=null?'<div class="note">최종 문장을 직접(또는 AI로) 수정한 상태입니다. 위 항목 문장을 바꿔도 반영되지 않으니, 반영하려면 [자동 문장으로 되돌리기]를 누르세요.</div>':'';
+  $('#fnote').innerHTML=S.edits[s.key]?.final!=null?'<div class="note">최종 문장을 직접(또는 AI로) 수정한 상태입니다. 아래 항목 문장을 바꿔도 반영되지 않으니, 반영하려면 [자동 문장으로 되돌리기]를 누르세요.</div>':'';
   const L=lint(t);UI.lint=L;
   $('#lintbox').innerHTML=L.length?`<div class="lint">⚠ 기재 유의 표현: ${L.map((x,j)=>x.rep?`<b>${esc(x.w)}</b> → ${esc(x.rep)} <button class="b s" onclick="fixLint(${j})">바꾸기</button>`:`<b>${esc(x.w)}</b> (영문 표기 확인)`).join(' · ')}</div>`:'';
+  const Q=qcheck(t,s);if(Q.length)$('#lintbox').innerHTML+=`<div class="note">⚠ 점검: ${esc(Q.join(' · '))}</div>`;
   renderList();save()}
 function fixLint(j){const x=UI.lint[j],t=$('#ftext').value;$('#ftext').value=t.split(x.w).join(x.rep.split(',')[0].trim());setFinal($('#ftext').value)}
 function touch(){const s=curS();if(S.edits[s.key]?.final==null)$('#ftext').value=generated(s);updFinal()}
@@ -625,8 +636,9 @@ function setFinal(v){const s=curS(),e=ed(s.key);e.final=v===generated(s)?null:v;
 function setLv(i,v){const e=ed(UI.sel),h=hAt(i);if(v==='')delete e.lv[h];else e.lv[h]=+v;delete e.sent[h];recompute();renderDetail();renderList();save()}
 function shuffle(i){const e=ed(UI.sel),h=hAt(i);e.shift[h]=(e.shift[h]||0)+1;delete e.sent[h];renderDetail()}
 function resetSent(i){delete ed(UI.sel).sent[hAt(i)];renderDetail()}
-function resetFinal(){ed(UI.sel).final=null;renderDetail()}
-async function resetStudent(){if(!await ask('이 학생의 단계·문장 수정을 모두 초기화할까요?'))return;delete S.edits[UI.sel];recompute();renderDetail()}
+function resetFinal(){const s=curS();setFinalBy(s,null,'되돌리기 전');renderDetail();save()}
+const keepEd=e=>({lv:{},sent:{},shift:{},extra:'',final:null,memo:e?.memo||'',must:e?.must||[],hist:e?.hist||[]});
+async function resetStudent(){if(!await ask('이 학생의 단계·문장 수정을 모두 초기화할까요? (교사 메모와 이전 버전은 남습니다)'))return;const s=curS();pushHist(s.key,finalText(s),'초기화 전');S.edits[UI.sel]=keepEd(S.edits[UI.sel]);recompute();renderDetail();save()}
 ['#fcls','#fq','#flint'].forEach(id=>$(id).addEventListener('input',renderList));
 
 /* ---------- AI ---------- */
@@ -728,32 +740,37 @@ function batchPrompt(items,target){return trimPrompt('',target).replace(/\n원�
 ${JSON.stringify(items)}`}
 const anon=(t,s)=>s.name?t.split(s.name).join('학생'):t;
 function aiOne(){const s=curS(),t=$('#ftext').value;if(!t.trim())return toast('다듬을 문장이 없습니다.');if(!needAI())return;$('#ai-req').value=S.cfg.ai.req||'';renderAIChip();
+  UI.aimode='trim';$('#ai-title').textContent='🤖 AI 다듬기';$('#ai-olabel').textContent='원문';$('#ai-tlabel').textContent='목표 바이트';
   $('#ai-who').textContent=`${s.cls} ${s.name}`;$('#ai-orig').value=t;$('#ai-ob').textContent=`(${bytes(t)}바이트)`;
   $('#ai-target').value=S.cfg.byteLimit;$('#ai-res').value='';$('#ai-rb').textContent='';$('#ai-msg').textContent='';$('#aimodal').classList.add('on')}
-$('#ai-run').onclick=async()=>{const s=curS();
-  try{const r=await timed($('#ai-msg'),'요청 중…',()=>callAI(trimPrompt(anon($('#ai-orig').value,s),+$('#ai-target').value||S.cfg.byteLimit,$('#ai-req').value)));$('#ai-res').value=r;$('#ai-res').dispatchEvent(new Event('input'));$('#ai-msg').textContent='완료'}
+$('#ai-run').onclick=async()=>{const s=curS(),tg=+$('#ai-target').value||S.cfg.byteLimit,req=$('#ai-req').value;
+  try{const r=await timed($('#ai-msg'),'요청 중…',()=>UI.aimode==='write'?callAI(writePrompt(s,req,aiTarget(tg)),4000,120000):callAI(trimPrompt(anon($('#ai-orig').value,s),tg,req)));$('#ai-res').value=r;$('#ai-res').dispatchEvent(new Event('input'));$('#ai-msg').textContent='완료'}
   catch(e){$('#ai-msg').textContent='오류: '+e.message}};
-$('#ai-res').oninput=()=>{const v=$('#ai-res').value,b=bytes(v),t=+$('#ai-target').value,L=lint(v);$('#ai-rb').innerHTML=`<span class="badge ${b>t?'bad':'ok'}">${b}바이트</span>${L.length?` <span class="badge bad">⚠ ${esc(L.map(x=>x.w).join(', '))}</span>`:''}`};
+$('#ai-res').oninput=()=>{const v=$('#ai-res').value,b=bytes(v),t=+$('#ai-target').value,L=lint(v),Q=qcheck(v,curS());$('#ai-rb').innerHTML=`<span class="badge ${b>t?'bad':'ok'}">${b}바이트</span>${L.length?` <span class="badge bad">⚠ ${esc(L.map(x=>x.w).join(', '))}</span>`:''}${Q.length?` <span class="badge warn">⚠ ${esc(Q.join(' · '))}</span>`:''}`};
 $('#ai-req').oninput=e=>{S.cfg.ai.req=e.target.value;const f=$('#freq');if(f)f.value=e.target.value;save()};
 $('#ai-cancel').onclick=()=>$('#aimodal').classList.remove('on');
-$('#ai-apply').onclick=()=>{const v=$('#ai-res').value.trim();if(!v)return;ed(UI.sel).final=v;$('#aimodal').classList.remove('on');renderDetail()};
-async function aiBatch(){const lim=S.cfg.byteLimit,list=filtered().filter(s=>finalText(s).trim());
+$('#ai-apply').onclick=()=>{const v=$('#ai-res').value.trim();if(!v)return;setFinalBy(curS(),v,UI.aimode==='write'?'AI 작성 전':'AI 다듬기 전');$('#aimodal').classList.remove('on');renderDetail();save()};
+async function aiBatch(mode='trim'){const W=mode==='write',lim=S.cfg.byteLimit,list=filtered().filter(s=>W?card(s).length:finalText(s).trim()),T=aiTarget(),by=W?'AI 작성 전':'AI 다듬기 전';
   if(!list.length)return toast('필터에 해당하는 학생이 없습니다.');if(!needAI())return;
   const req=(S.cfg.ai.req||'').trim(),gap=Math.max(0,+(S.cfg.ai.gap??2))*1000;
-  if(!await ask(`현재 필터에 걸린 학생 ${list.length}명을 AI로 다듬어 바로 적용합니다.
+  if(W&&!await ask(`현재 필터에 걸린 학생 ${list.length}명의 세특을 사실 카드로 AI가 새로 작성해 바로 적용합니다.
+· 분량: ${T.lo}~${T.hi}바이트
+· 추가 요청: ${req||'없음'}
+(지금 최종 세특은 학생별 [↩ 이전 버전]에 보관됩니다) 계속할까요?`))return;
+  if(!W&&!await ask(`현재 필터에 걸린 학생 ${list.length}명을 AI로 다듬어 바로 적용합니다.
 · 목표: ${lim}바이트 이하 (가능하면 ${Math.round(lim*.9)}바이트 이상)
 · 추가 요청: ${req||'없음'}
-(학생별 [자동 문장으로 되돌리기]로 복구 가능) 계속할까요?`))return;
+(지금 최종 세특은 학생별 [↩ 이전 버전]에 보관됩니다) 계속할까요?`))return;
   let ok=0,fail=0,busy=0;
   if(S.cfg.ai.provider==='claudesub'){
-    for(let c=0;c<list.length;c+=6){const chunk=list.slice(c,c+6);$('#status').textContent=`Claude 처리 중 ${c+1}~${c+chunk.length}/${list.length}…`;
-      try{const r=await callAI(batchPrompt(chunk.map((s,i)=>({id:i,text:anon(finalText(s),s)})),lim),8000);
+    const CH=W?4:6;for(let c=0;c<list.length;c+=CH){const chunk=list.slice(c,c+CH);$('#status').textContent=`Claude 처리 중 ${c+1}~${c+chunk.length}/${list.length}…`;
+      try{const r=await callAI(W?batchWritePrompt(chunk,req):batchPrompt(chunk.map((s,i)=>({id:i,text:anon(finalText(s),s)})),lim),8000,180000);
         const arr=JSON.parse(r.slice(r.indexOf('['),r.lastIndexOf(']')+1));
-        for(const x of arr){const s=chunk[+x.id];if(s&&x.text){ed(s.key).final=String(x.text).trim();ok++}}fail+=chunk.length-arr.filter(x=>chunk[+x.id]&&x.text).length}
+        for(const x of arr){const s=chunk[+x.id];if(s&&x.text){setFinalBy(s,String(x.text).trim(),by);ok++}}fail+=chunk.length-arr.filter(x=>chunk[+x.id]&&x.text).length}
       catch(e){fail+=chunk.length;notice('오류: '+e.message);if(e.code&&e.code!=='upstream_error')break}}}
   else for(let i=0;i<list.length;i++){const s=list[i];$('#status').textContent=`AI 처리 중 ${i+1}/${list.length}…`;
     if(i&&gap)await sleep(gap);
-    try{ed(s.key).final=await callAI(trimPrompt(anon(finalText(s),s),lim,req));ok++;busy=0;renderList();save()}
+    try{const r=await callAI(W?writePrompt(s,req):trimPrompt(anon(finalText(s),s),lim,req),4000,120000);setFinalBy(s,r,by);ok++;busy=0;renderList();save()}
     catch(e){fail++;if(isBusy(e)||/요청이 몰려/.test(e.message)){if(++busy>=3){if(!await ask(`요청이 몰려 ${busy}명 연속 실패했습니다.
 ${e.message}
 
@@ -784,12 +801,102 @@ function aiAddApply(){const subj=$('#aiaddsubj').value==='cur'?(S.cfg.subject||'
   document.querySelectorAll('.aisel:checked').forEach(c=>{const x=AIADD[+c.dataset.i];S.bank.push({subj,item:String(x['항목']).trim(),from:Math.max(1,Math.min(10,+x['부터']||1)),to:Math.max(1,Math.min(10,+x['까지']||10)),text:String(x['문장']).trim(),src:'AI 분류 '+today(),note:''});n++});
   $('#aiaddres').innerHTML='';$('#aiadd').value='';$('#aiaddmsg').textContent=`${n}개 추가했습니다.`;renderBank();save()}
 
+/* ---------- 문제 발표 가상 항목 · 사실 카드 · AI 세특 작성 · 검증 · 버전 ---------- */
+const VP={cnt:'문제발표 횟수',max:'문제발표 최고난이도',chal:'문제발표 도전 수',w:'문제발표 가중점수'},VPK=Object.values(VP);
+const isChal=p=>/도전/.test(p?.['구분']||'');
+const hasPres=()=>!!S.book&&S.book.names.some(n=>{const sc=S.cfg.sheets[n];return sc?.role==='ref'&&sc.probCol});
+const presW=()=>({b:+(S.cfg.pres?.b??1),c:+(S.cfg.pres?.c??2)});
+function calcPres(){if(!hasPres())return;const w=presW();
+  for(const s of ST){const P=presented(s),nc=P.filter(x=>isChal(x.info)).length;s.pres=P;
+    s.scores[VP.cnt]=P.length;s.scores[VP.chal]=nc;s.scores[VP.w]=nc*w.c+(P.length-nc)*w.b;s.scores[VP.max]=P.length?(nc?2:1):null}}
+function vpItem(h){const it={label:h,enabled:h===VP.w,method:'relative',scope:'all',zeroOne:true,cuts:Array(11).fill(null),groups:[{from:1,to:10,omit:true,sentences:''}],pick:'random',bank:'',
+    desc:{[VP.cnt]:'문제 풀이 발표 횟수',[VP.max]:'발표한 문제 중 가장 높은 난이도',[VP.chal]:'발표한 도전 문제 수',[VP.w]:'문제 풀이 발표 가중 점수'}[h]};
+  if(h===VP.max){it.method='range';it.cuts[10]=2;it.cuts[6]=1;it.zeroOne=false}return it}
+const GRADE=l=>l>=9?'A':l>=7?'B':l>=5?'C':l>=3?'D':'E';
+function presOrder(s){const must=new Set(S.edits[s.key]?.must||[]);
+  return(s.pres||[]).map((x,i)=>({...x,i})).sort((a,b)=>(must.has(b.code)-must.has(a.code))||(isChal(b.info)-isChal(a.info))||String(b.date).localeCompare(String(a.date))||a.i-b.i)}
+function presSummary(s){const P=s.pres||[];if(!P.length)return'';const nc=P.filter(x=>isChal(x.info)).length;return`${P.length}회 (${P.map(x=>x.code).join(', ')})${nc?` · 도전 ${nc}`:''}`}
+function card(s){const e=S.edits[s.key]||{},L=[],must=new Set(e.must||[]);let presDone=false;
+  const presLines=()=>{const P=presOrder(s);if(!P.length)return[];const nc=P.filter(x=>isChal(x.info)).length;
+    const out=[`· 문제 풀이 발표 ${P.length}회 (기본 ${P.length-nc}, 도전 ${nc}) — 주제는 우선순위 순`];
+    for(const x of P){const p=x.info;if(!p&&!x.memo)continue;
+      out.push(`   - ${must.has(x.code)?'[반드시 쓸 주제] ':''}${p?`[${p['구분']||'기본'}] ${p['주제 구']||p['문제 요약']||''}`:'[주제 정보 없음]'}`);
+      if(p)for(const [k,lab] of [['발표 시 드러나는 행동','드러난 행동'],['핵심 개념','핵심 개념'],['교과 역량','교과 역량'],['성취기준 코드','성취기준']])if(p[k])out.push(`     ${lab}: ${p[k]}`);
+      if(x.memo)out.push(`     교사 관찰 메모: ${x.memo}`)}
+    return out};
+  for(const h of activeItems()){const it=S.cfg.items[h];if(it.card===false)continue;const v=s.scores[h],lv=levelOf(s,h),vp=VPK.includes(h);
+    if(vp&&!(s.pres||[]).length)continue;if((v==null&&lv==null)||(v===0&&!vp))continue;
+    const val=h===VP.max?(v===2?'도전':v===1?'기본':'-'):v;
+    const w=presW(),desc=(it.desc||'')+(h===VP.w?` [기본 ${w.b}점·도전 ${w.c}점]`:'');
+    L.push(`· ${it.label}: ${val??'-'}${desc?` (${desc})`:''}${lv!=null?` → ${lv}단계(${GRADE(lv)})`:''}`);
+    if(vp&&!presDone){L.push(...presLines());presDone=true}}
+  if(!presDone)L.push(...presLines());
+  for(const n of S.book?.names||[]){const sc=S.cfg.sheets[n];if(sc?.role!=='ref'||!(sc.cardCols||[]).length)continue;const hs=headers(n),mi=hs.indexOf(sc.matchCol);if(mi<0)continue;
+    const want=sc.matchBy==='key'?s.kraw:s.name;if(!want)continue;
+    for(const r of dataRows(n))if(String(r[mi]??'').trim()===want){const t=sc.cardCols.map(c=>{const v=r[hs.indexOf(c)];return v!=null&&v!==''?`${c}: ${fmtDate(v)}`:''}).filter(Boolean).join(' / ');if(t)L.push(`· ${n}: ${t}`)}}
+  const memo=(e.memo||'').split('\n').map(x=>x.replace(/^[\s\-·•]+/,'').trim()).filter(Boolean);
+  if(memo.length)L.push('· 교사 메모',...memo.map(x=>'   - '+x));
+  return L}
+function setMemo(v){ed(UI.sel).memo=v;save();updCard()}
+function toggleMust(c,on){const e=ed(UI.sel);e.must=(e.must||[]).filter(x=>x!==c);if(on)e.must.push(c);save();updCard()}
+function updCard(){const s=curS(),el=$('#cardpre');if(s&&el)el.textContent=card(s).join('\n')||'(카드에 넣을 정보가 없습니다)'}
+function cardBox(s){const e=S.edits[s.key]||{};
+  return`<details open style="margin-top:10px"><summary><b>🗂 사실 카드</b> <span class="sub">AI 세특 작성의 근거입니다. 이름은 '학생'으로 바뀌어 전송됩니다.</span></summary>
+  <pre class="cardbox" id="cardpre"></pre>
+  <div class="sub">교사 메모 (한 줄에 하나씩 개조식으로)</div>
+  <textarea rows="3" oninput="setMemo(this.value)" placeholder="예: 친구 질문에 다른 방법으로 다시 설명함">${esc(e.memo||'')}</textarea></details>`}
+function aiTarget(hi){const a=S.cfg.ai,lim=S.cfg.byteLimit,lp=+(a.tlo??90),hp=+(a.thi??95);
+  if(hi)return{hi,lo:Math.round(hi*Math.min(lp,hp)/Math.max(lp,hp))};return{lo:Math.round(lim*Math.min(lp,hp)/100),hi:Math.round(lim*Math.max(lp,hp)/100)}}
+function writeBody(s){const ex=activeItems().filter(h=>S.cfg.items[h].card!==false).map(h=>{const t=autoSentence(s,h);return t?`- ${S.cfg.items[h].label}(${levelOf(s,h)}단계): ${t}`:''}).filter(Boolean);
+  return{card:anon(card(s).join('\n'),s),ex:anon(ex.join('\n'),s)}}
+function writeRules(t,req){return`너는 대한민국 고등학교 ${S.cfg.subject||''} 교사의 학교생활기록부 '과목별 세부능력 및 특기사항' 작성을 돕는다. 교사가 정리한 [사실 카드]만 근거로 학생의 세특을 한 단락으로 작성하라.
+- 분량: 나이스 기준 ${t.lo}~${t.hi}바이트 (한글 1자=3바이트, 영문·숫자·공백·문장부호=1바이트). 넘칠 것 같으면 우선순위가 낮은 내용부터 뺄 것.
+- 구성: 사실 카드의 항목 순서대로 자연스럽게 이어 쓰고, 같은 표현을 반복하지 말 것.
+- 표현 강도: 각 항목의 단계(1~10, 10이 최상)와 성취수준(A 9~10, B 7~8, C 5~6, D 3~4, E 1~2)에 맞출 것. [표현 강도 예시]는 그 단계에서 교사가 쓰는 문장으로 강도를 맞추는 참고용이며 그대로 베끼지 말 것. 단계가 낮은 항목은 긍정적인 사실 위주로 짧게 쓰거나 생략할 것.
+- 문제 풀이 발표: [반드시 쓸 주제]는 꼭 포함하고, 나머지 주제는 적힌 순서(도전 문제 우선)대로 분량이 허락하는 만큼만 쓸 것. 주제를 나열하기보다 대표 주제에서 드러난 행동과 교과 역량을 구체적으로 쓸 것. 문제 번호는 쓰지 말 것.
+- 사실 카드에 없는 활동, 결과, 태도, 수치, 대회를 지어내지 말 것. '압도적', '완벽', '교사에 버금가는' 같은 과장 표현을 쓰지 말 것.
+- 문장에 학생 이름이나 '학생은' 같은 주어를 쓰지 말 것.
+- 설명 없이 완성된 세특 문장만 출력할 것.
+${reqLine(req)}${RULES()}`}
+function writePrompt(s,req=S.cfg.ai.req,t=aiTarget()){const b=writeBody(s);return writeRules(t,req)+`
+
+[사실 카드]
+${b.card}${b.ex?`
+
+[표현 강도 예시]
+${b.ex}`:''}`}
+function batchWritePrompt(chunk,req){return writeRules(aiTarget(),req)+`
+- 여러 학생을 각각 따로 작성하라. 출력은 다른 설명 없이 JSON 배열만: [{"id":0,"text":"세특 문장"}]
+
+`+chunk.map((s,i)=>{const b=writeBody(s);return`### id ${i}
+[사실 카드]
+${b.card}${b.ex?`
+[표현 강도 예시]
+${b.ex}`:''}`}).join('\n\n')}
+const EXAG=['압도적','완벽','교사에 버금','교사 못지','천재','독보적','최고의','전교','누구보다','타의 추종','유일하게','모든 면에서'];
+function qcheck(t,s){const out=[];t=String(t||'').trim();if(!t)return out;
+  const ex=EXAG.filter(w=>t.includes(w));if(ex.length)out.push('과장 의심: '+ex.join(', '));
+  const nd=[...t.matchAll(/(\S*)(함|됨|임)\s+(?=[가-힣0-9])/g)].map(m=>m[1]+m[2]).filter(w=>!/^(포함|함함)$/.test(w));if(nd.length)out.push('마침표 누락 의심: '+[...new Set(nd)].slice(0,3).join(', '));
+  if(!/[.!?。]$/.test(t))out.push('끝 마침표 없음');
+  const codes=new Set(S.probs.map(p=>String(p['코드']).trim()));const cm=[...new Set((t.match(/(?<!\d)\d{3}(?!\d)/g)||[]).filter(c=>codes.has(c)))];if(cm.length)out.push('문제 번호 노출: '+cm.join(', '));
+  if(s){const mine=new Set((s.pres||[]).map(x=>x.code)),wrong=S.probs.filter(p=>p['주제 구']&&!mine.has(String(p['코드']).trim())&&t.includes(p['주제 구'])).map(p=>p['코드']);if(wrong.length)out.push('발표하지 않은 문제 주제: '+wrong.join(', '))}
+  return out}
+function pushHist(k,text,by){if(!String(text||'').trim())return;const e=ed(k);e.hist=e.hist||[];if(e.hist[0]?.text===text)return;
+  e.hist.unshift({t:new Date().toLocaleString('ko-KR',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}),text,by});e.hist=e.hist.slice(0,5)}
+function setFinalBy(s,v,by){pushHist(s.key,finalText(s),by);ed(s.key).final=v}
+function restoreVer(i){const s=curS(),e=ed(s.key),h=e.hist?.[+i];if(!h)return;const cur=finalText(s);e.hist.splice(+i,1);pushHist(s.key,cur,'되돌리기 전');e.final=h.text;renderDetail();save();toast('이전 버전으로 되돌렸습니다.')}
+function histSel(e){const H=e.hist||[];return H.length?`<select onchange="if(this.value!=='')restoreVer(this.value)" title="최종 세특이 바뀌기 전 상태 (최근 5개)"><option value="">↩ 이전 버전 (${H.length})</option>${H.map((h,i)=>`<option value="${i}">${esc(h.t)} · ${esc(h.by)} · ${bytes(h.text)}바이트</option>`).join('')}</select>`:''}
+function aiWrite(){const s=curS();if(!s)return;if(!card(s).length)return toast('사실 카드에 넣을 정보가 없습니다.');if(!needAI())return;
+  UI.aimode='write';$('#ai-title').textContent='🤖 AI 세특 작성';$('#ai-olabel').textContent='보낼 사실 카드';$('#ai-tlabel').textContent='최대 바이트';
+  $('#ai-who').textContent=`${s.cls} ${s.name}`;const b=writeBody(s);$('#ai-orig').value=b.card+(b.ex?'\n\n[표현 강도 예시]\n'+b.ex:'');$('#ai-ob').textContent='';
+  $('#ai-req').value=S.cfg.ai.req||'';$('#ai-target').value=aiTarget().hi;$('#ai-res').value='';$('#ai-rb').textContent='';$('#ai-msg').textContent='';renderAIChip();$('#aimodal').classList.add('on')}
+
 /* ---------- ⑤ 내보내기·설정 ---------- */
 function exportXlsx(){if(!ST.length)return toast('학생 데이터가 없습니다.');
   const hs=activeItems(),lim=S.cfg.byteLimit,ws=$('#withscore').checked;
-  const head=['학급','학번','이름',...(ws?hs.flatMap(h=>[S.cfg.items[h].label+' 점수',S.cfg.items[h].label+' 단계']):[]),'세부능력 및 특기사항','바이트','비고'];
+  const hp=hasPres(),head=['학급','학번','이름',...(ws?hs.flatMap(h=>[S.cfg.items[h].label+' 점수',S.cfg.items[h].label+' 단계']):[]),...(hp?['발표 요약']:[]),'세부능력 및 특기사항','바이트','비고'];
   const mk=list=>{const sh=XLSX.utils.aoa_to_sheet([head,...list.map(s=>{const t=finalText(s),b=bytes(t),L=lint(t);
-    return[s.cls,s.kraw,s.name,...(ws?hs.flatMap(h=>[s.scores[h]??'',levelOf(s,h)??'']):[]),t,b,[b>lim?'바이트 초과':'',L.length?'기재 유의: '+L.map(x=>x.w).join(', '):''].filter(Boolean).join(' / ')]})]);
+    return[s.cls,s.kraw,s.name,...(ws?hs.flatMap(h=>[s.scores[h]??'',levelOf(s,h)??'']):[]),...(hp?[presSummary(s)]:[]),t,b,[b>lim?'바이트 초과':'',L.length?'기재 유의: '+L.map(x=>x.w).join(', '):'',...qcheck(t,s)].filter(Boolean).join(' / ')]})]);
     sh['!cols']=head.map(h=>({wch:h==='세부능력 및 특기사항'?80:Math.max(8,h.length*2)}));return sh};
   const wb=XLSX.utils.book_new();
   if($('#splitcls').checked){const used=new Set();for(const c of [...new Set(ST.map(s=>s.cls))]){let n=c.replace(/[\[\]:*?\/\\]/g,'_').slice(0,31)||'시트';while(used.has(n))n=n.slice(0,29)+'_'+used.size;used.add(n);XLSX.utils.book_append_sheet(wb,mk(ST.filter(s=>s.cls===c)),n)}}
@@ -798,13 +905,17 @@ function exportXlsx(){if(!ST.length)return toast('학생 데이터가 없습니�
 function saveProject(){saveOut(`세특_작업백업_${today()}.json`,new Blob([JSON.stringify(projectData())],{type:'application/json'}))}
 $('#loadproj').onchange=async e=>{const f=e.target.files[0];e.target.value='';if(!f)return;let d;try{d=JSON.parse(await f.text())}catch(_){return notice('JSON을 읽지 못했습니다.')}
   if(d.type!=='seteuk-project')return notice('작업 백업 파일이 아닙니다.');applyProject(d);toast('불러왔습니다.')};
-async function resetEdits(){if(await ask('모든 학생의 단계·문장 수정 내용을 초기화할까요?')){S.edits={};recompute();renderAll();save()}}
+async function resetEdits(){if(await ask('모든 학생의 단계·문장 수정 내용을 초기화할까요? (교사 메모와 이전 버전은 남습니다)')){for(const s of ST)pushHist(s.key,finalText(s),'초기화 전');for(const k in S.edits)S.edits[k]=keepEd(S.edits[k]);recompute();renderAll();save()}}
 async function resetAll(){if(await ask('업로드한 데이터와 항목 설정, 학생 작업을 모두 지웁니다(문장 은행은 유지). 계속할까요?')){const key=S.cfg.ai.key,ai=S.cfg.ai,subject=S.cfg.subject;S.book=null;S.cfg=defaultCfg();S.cfg.ai=ai;S.cfg.ai.key=key;S.cfg.subject=subject;S.edits={};UI.sel=null;rebuild();renderAll();save()}}
 function renderSettings(){$('#blimit').value=S.cfg.byteLimit;$('#sep').value=S.cfg.sep;$('#aiprov').value=S.cfg.ai.provider;renderModelSel();$('#aitier').value=S.cfg.ai.tier||'default';const sub=S.cfg.ai.provider==='claudesub';
   ['#aikeywrap','#aimodelwrap','#aikeynote'].forEach(x=>$(x).classList.toggle('hide',sub));['#aitierwrap','#aisubnote'].forEach(x=>$(x).classList.toggle('hide',!sub));$('#aikey').value=S.cfg.ai.key;$('#subj').value=S.cfg.subject;
+  $('#tlo').value=S.cfg.ai.tlo??90;$('#thi').value=S.cfg.ai.thi??95;const w=presW();$('#pwb').value=w.b;$('#pwc').value=w.c;
   $('#aifb').checked=S.cfg.ai.fallback!==false;$('#aigap').value=S.cfg.ai.gap??2;['#aibusywrap','#aibusynote'].forEach(x=>$(x).classList.toggle('hide',sub));renderAIChip()}
 $('#aifb').onchange=e=>{S.cfg.ai.fallback=e.target.checked;save()};
 $('#aigap').onchange=e=>{S.cfg.ai.gap=Math.max(0,+e.target.value||0);save()};
+$('#tlo').onchange=e=>{S.cfg.ai.tlo=Math.max(50,Math.min(100,+e.target.value||90));save()};
+$('#thi').onchange=e=>{S.cfg.ai.thi=Math.max(50,Math.min(100,+e.target.value||95));save()};
+['#pwb','#pwc'].forEach(id=>$(id).onchange=()=>{S.cfg.pres={b:+$('#pwb').value||0,c:+$('#pwc').value||0};rebuild();renderAll();save()});
 $('#blimit').onchange=e=>{S.cfg.byteLimit=+e.target.value||1500;renderWork();save()};
 $('#sep').onchange=e=>{S.cfg.sep=e.target.value;renderWork();save()};
 $('#aiprov').onchange=e=>{S.cfg.ai.provider=e.target.value;S.cfg.ai.model='';$('#aimsg').textContent='';renderSettings();save()};
