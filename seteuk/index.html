@@ -534,7 +534,7 @@ function renderItems(){const box=$('#items'),hs=presentItems(),bi=bankItems();
       <label><input type="checkbox"${it.enabled?' checked':''} onchange="setIt(${i},'enabled',this.checked)"> 사용</label>
       <b>${esc(h)}</b> → 표시 이름 <input value="${esc(it.label)}" onchange="setIt(${i},'label',this.value)" style="width:180px">
       <span class="sub">점수 범위 ${vals.length?Math.min(...vals)+' ~ '+Math.max(...vals):'-'} · ${vals.length}명</span></div>
-    <div class="row" style="margin-top:6px">🗂 카드 설명 <input value="${esc(it.desc||'')}" placeholder="AI에게 이 항목이 무엇인지 알려 주는 설명 (예: 수업 중 자발적으로 발표한 횟수)" onchange="setIt(${i},'desc',this.value)" style="flex:1;min-width:240px">
+    <div class="row" style="margin-top:6px">📝 AI 작성 지침 <input value="${esc(it.desc||'')}" placeholder="이 항목이 무엇인지, 어떻게 서술할지 (세특에 그대로 쓰이지 않고 AI가 해석에만 씀)" onchange="setIt(${i},'desc',this.value)" style="flex:1;min-width:240px">
       <label><input type="checkbox"${it.card!==false?' checked':''} onchange="setIt(${i},'card',this.checked)"> 사실 카드에 넣기</label></div>
     <div class="row" style="margin-top:8px">단계 변환
       <select onchange="setIt(${i},'method',this.value)"><option value="relative"${it.method==='relative'?' selected':''}>상대평가(백분위)</option><option value="range"${it.method==='range'?' selected':''}>구간 직접 입력</option></select>
@@ -552,19 +552,21 @@ function renderItems(){const box=$('#items'),hs=presentItems(),bi=bankItems();
       <span class="badge">${gcount[gi]}명</span>
       <label><input type="checkbox"${g.omit?' checked':''} onchange="setG(${i},${gi},'omit',this.checked)"> 문장 생략</label>
       <span style="flex:1"></span><button class="b s" onclick="delGroup(${i},${gi})">삭제</button></div>
-      ${g.omit?'':`<textarea rows="3" placeholder="한 줄에 한 문장씩 입력 (여러 줄이면 학생마다 다르게 배정)" onchange="setG(${i},${gi},'sentences',this.value)">${esc(g.sentences)}</textarea>`}</div>`).join('')}
+      ${g.omit?'':`<textarea rows="3" placeholder="예시 문장: 한 줄에 한 문장씩 입력 (여러 줄이면 학생마다 다르게 배정). AI 없이 만드는 초안에 그대로 들어가고, AI에게는 표현 강도 예시로 전달됨" onchange="setG(${i},${gi},'sentences',this.value)">${esc(g.sentences)}</textarea>`}
+      <div class="row" style="margin-top:4px">📝 <input value="${esc(g.guide||'')}" placeholder="이 단계 AI 지침 (예: 자발성과 꾸준함을 강조) — 세특에 쓰이지 않고, 이 단계 학생을 AI로 작성할 때만 전달" onchange="setG(${i},${gi},'guide',this.value)" style="flex:1"></div></div>`).join('')}
     </div>`}).join('')}
 const itemAt=i=>S.cfg.items[presentItems()[i]];
 function itemsChanged(){recompute();renderItems();renderWork();save()}
 function setIt(i,k,v){itemAt(i)[k]=v;itemsChanged()}
 function setCut(i,l,v){itemAt(i).cuts[l]=v===''?null:+v;itemsChanged()}
 function setG(i,gi,k,v){const g=itemAt(i).groups[gi];g[k]=(k==='from'||k==='to')?Math.max(1,Math.min(10,+v||1)):v;itemsChanged()}
-async function presetIt(i,k){if(!await ask(`${k}구간으로 묶음을 다시 만듭니다. 기존 문장은 사라집니다. 계속할까요?`))return;itemAt(i).groups=presetGroups(k);itemsChanged()}
+async function presetIt(i,k){if(!await ask(`${k}구간으로 묶음을 다시 만듭니다. 기존 문장은 사라집니다. 계속할까요?`))return;itemAt(i).groups=keepGuides(itemAt(i).groups,presetGroups(k));itemsChanged()}
+function keepGuides(old,neu){for(const g of neu){const o=old.find(x=>+x.from===+g.from&&+x.to===+g.to&&x.guide);if(o)g.guide=o.guide}return neu}
 function addGroup(i){itemAt(i).groups.push({from:1,to:1,omit:false,sentences:''});itemsChanged()}
 function delGroup(i,gi){itemAt(i).groups.splice(gi,1);itemsChanged()}
 function moveItem(i,d){const hs=presentItems(),j=i+d;if(j<0||j>=hs.length)return;const o=S.cfg.order,a=o.indexOf(hs[i]),b=o.indexOf(hs[j]);[o[a],o[b]]=[o[b],o[a]];itemsChanged()}
 async function fromBank(i){const n=$('#bk'+i).value;if(!n)return toast('문장 은행 항목을 고르세요.');
-  if(!await ask(`「${n}」 문장으로 이 항목의 문장 묶음을 바꿉니다. 계속할까요?`))return;const it=itemAt(i);it.groups=groupsFromBank(n);it.bank=n;itemsChanged()}
+  if(!await ask(`「${n}」 문장으로 이 항목의 문장 묶음을 바꿉니다. 계속할까요?`))return;const it=itemAt(i);it.groups=keepGuides(it.groups,groupsFromBank(n));it.bank=n;itemsChanged()}
 async function toBank(i){const it=itemAt(i),n=$('#bk'+i).value||it.bank||it.label;
   const subj=await dlg(`「${n}」 항목으로 문장 은행에 저장합니다. 어디에 저장할까요?`,[['취소',null],[`현재 과목(${S.cfg.subject||'미지정'})`,S.cfg.subject||'공통'],['공통(모든 과목)','공통']]);if(!subj)return;
   S.bank=S.bank.filter(b=>!(b.item===n&&b.subj===subj));
@@ -827,8 +829,7 @@ function card(s){const e=S.edits[s.key]||{},L=[],must=new Set(e.must||[]);let pr
   for(const h of activeItems()){const it=S.cfg.items[h];if(it.card===false)continue;const v=s.scores[h],lv=levelOf(s,h),vp=VPK.includes(h);
     if(vp&&!(s.pres||[]).length)continue;if((v==null&&lv==null)||(v===0&&!vp))continue;
     const val=h===VP.max?(v===2?'도전':v===1?'기본':'-'):v;
-    const w=presW(),desc=(it.desc||'')+(h===VP.w?` [기본 ${w.b}점·도전 ${w.c}점]`:'');
-    L.push(`· ${it.label}: ${val??'-'}${desc?` (${desc})`:''}${lv!=null?` → ${lv}단계(${GRADE(lv)})`:''}`);
+    L.push(`· ${it.label}: ${val??'-'}${lv!=null?` → ${lv}단계(${GRADE(lv)})`:''}`);
     if(vp&&!presDone){L.push(...presLines());presDone=true}}
   if(!presDone)L.push(...presLines());
   for(const n of S.book?.names||[]){const sc=S.cfg.sheets[n];if(sc?.role!=='ref'||!(sc.cardCols||[]).length)continue;const hs=headers(n),mi=hs.indexOf(sc.matchCol);if(mi<0)continue;
@@ -839,46 +840,58 @@ function card(s){const e=S.edits[s.key]||{},L=[],must=new Set(e.must||[]);let pr
   return L}
 function setMemo(v){ed(UI.sel).memo=v;save();updCard()}
 function toggleMust(c,on){const e=ed(UI.sel);e.must=(e.must||[]).filter(x=>x!==c);if(on)e.must.push(c);save();updCard()}
-function updCard(){const s=curS(),el=$('#cardpre');if(s&&el)el.textContent=card(s).join('\n')||'(카드에 넣을 정보가 없습니다)'}
+function updCard(){const s=curS(),el=$('#cardpre');if(!s||!el)return;el.textContent=card(s).join('\n')||'(카드에 넣을 정보가 없습니다)';
+  const G=[...itemGuides(),...levelGuides(s)];$('#guidepre').textContent=G.length?'📝 AI에게 함께 가는 지침 (세특에 쓰이지 않음)\n'+G.join('\n'):'📝 지침 없음 — ③ 항목 설정의 「AI 작성 지침」과 단계별 지침 칸에 적을 수 있습니다.'}
 function cardBox(s){const e=S.edits[s.key]||{};
   return`<details open style="margin-top:10px"><summary><b>🗂 사실 카드</b> <span class="sub">AI 세특 작성의 근거입니다. 이름은 '학생'으로 바뀌어 전송됩니다.</span></summary>
   <pre class="cardbox" id="cardpre"></pre>
+  <pre class="cardbox sub" id="guidepre" style="background:transparent;border-style:dashed"></pre>
   <div class="sub">교사 메모 (한 줄에 하나씩 개조식으로)</div>
   <textarea rows="3" oninput="setMemo(this.value)" placeholder="예: 친구 질문에 다른 방법으로 다시 설명함">${esc(e.memo||'')}</textarea></details>`}
 function aiTarget(hi){const a=S.cfg.ai,lim=S.cfg.byteLimit,lp=+(a.tlo??90),hp=+(a.thi??95);
   if(hi)return{hi,lo:Math.round(hi*Math.min(lp,hp)/Math.max(lp,hp))};return{lo:Math.round(lim*Math.min(lp,hp)/100),hi:Math.round(lim*Math.max(lp,hp)/100)}}
-function writeBody(s){const ex=activeItems().filter(h=>S.cfg.items[h].card!==false).map(h=>{const t=autoSentence(s,h);return t?`- ${S.cfg.items[h].label}(${levelOf(s,h)}단계): ${t}`:''}).filter(Boolean);
-  return{card:anon(card(s).join('\n'),s),ex:anon(ex.join('\n'),s)}}
+const cardItems=()=>activeItems().filter(h=>S.cfg.items[h].card!==false);
+function itemGuides(){const w=presW();return cardItems().map(h=>{const it=S.cfg.items[h],g=[(it.desc||'').trim(),h===VP.w?`가중치: 기본 ${w.b}점, 도전 ${w.c}점`:''].filter(Boolean).join(' / ');return g?`- ${it.label}: ${g}`:''}).filter(Boolean)}
+function levelGuides(s){return cardItems().map(h=>{const it=S.cfg.items[h],lv=levelOf(s,h),gi=groupIdx(it,lv),g=gi>=0?(it.groups[gi].guide||'').trim():'';return g?`- ${it.label}(${lv}단계): ${g}`:''}).filter(Boolean)}
+function writeBody(s){const ex=cardItems().map(h=>{const t=autoSentence(s,h);return t?`- ${S.cfg.items[h].label}(${levelOf(s,h)}단계): ${t}`:''}).filter(Boolean);
+  return{card:anon(card(s).join('\n'),s),ex:anon(ex.join('\n'),s),lg:levelGuides(s).join('\n')}}
+const studentBlock=b=>`[사실 카드]
+${b.card}${b.lg?`
+
+[이 학생에게 해당하는 단계별 지침] (교사용 안내 — 세특에 옮기지 말 것)
+${b.lg}`:''}${b.ex?`
+
+[표현 강도 예시]
+${b.ex}`:''}`;
 function writeRules(t,req){return`너는 대한민국 고등학교 ${S.cfg.subject||''} 교사의 학교생활기록부 '과목별 세부능력 및 특기사항' 작성을 돕는다. 교사가 정리한 [사실 카드]만 근거로 학생의 세특을 한 단락으로 작성하라.
 - 분량: 나이스 기준 ${t.lo}~${t.hi}바이트 (한글 1자=3바이트, 영문·숫자·공백·문장부호=1바이트). 넘칠 것 같으면 우선순위가 낮은 내용부터 뺄 것.
 - 구성: 사실 카드의 항목 순서대로 자연스럽게 이어 쓰고, 같은 표현을 반복하지 말 것.
 - 표현 강도: 각 항목의 단계(1~10, 10이 최상)와 성취수준(A 9~10, B 7~8, C 5~6, D 3~4, E 1~2)에 맞출 것. [표현 강도 예시]는 그 단계에서 교사가 쓰는 문장으로 강도를 맞추는 참고용이며 그대로 베끼지 말 것. 단계가 낮은 항목은 긍정적인 사실 위주로 짧게 쓰거나 생략할 것.
+- [항목별 작성 지침]과 [이 학생에게 해당하는 단계별 지침]은 교사가 AI에게 주는 안내다. 사실 카드의 각 값이 무엇을 뜻하는지, 어떤 방향과 강조점으로 쓸지를 파악하는 데만 쓰고, 지침의 문장·표현·설명(예: '~한 횟수', '~하려고 함', '차등적으로')을 세특에 옮겨 쓰지 말 것. 지침에 조건이 있으면 학생의 실제 값에 맞춰 판단할 것.
 - 문제 풀이 발표: [반드시 쓸 주제]는 꼭 포함하고, 나머지 주제는 적힌 순서(도전 문제 우선)대로 분량이 허락하는 만큼만 쓸 것. 주제를 나열하기보다 대표 주제에서 드러난 행동과 교과 역량을 구체적으로 쓸 것. 문제 번호는 쓰지 말 것.
 - 사실 카드에 없는 활동, 결과, 태도, 수치, 대회를 지어내지 말 것. '압도적', '완벽', '교사에 버금가는' 같은 과장 표현을 쓰지 말 것.
 - 문장에 학생 이름이나 '학생은' 같은 주어를 쓰지 말 것.
 - 설명 없이 완성된 세특 문장만 출력할 것.
-${reqLine(req)}${RULES()}`}
-function writePrompt(s,req=S.cfg.ai.req,t=aiTarget()){const b=writeBody(s);return writeRules(t,req)+`
+${reqLine(req)}${RULES()}${(G=>G.length?`
 
-[사실 카드]
-${b.card}${b.ex?`
-
-[표현 강도 예시]
-${b.ex}`:''}`}
+[항목별 작성 지침] (교사용 안내 — 세특에 옮기지 말 것)
+${G.join('\n')}`:'')(itemGuides())}`}
+function writePrompt(s,req=S.cfg.ai.req,t=aiTarget()){return writeRules(t,req)+'\n\n'+studentBlock(writeBody(s))}
 function batchWritePrompt(chunk,req){return writeRules(aiTarget(),req)+`
 - 여러 학생을 각각 따로 작성하라. 출력은 다른 설명 없이 JSON 배열만: [{"id":0,"text":"세특 문장"}]
 
-`+chunk.map((s,i)=>{const b=writeBody(s);return`### id ${i}
-[사실 카드]
-${b.card}${b.ex?`
-[표현 강도 예시]
-${b.ex}`:''}`}).join('\n\n')}
+`+chunk.map((s,i)=>`### id ${i}
+${studentBlock(writeBody(s))}`).join('\n\n')}
+function guideCopies(t,s,n=12){const T=t.replace(/\s+/g,''),src=new Set();
+  for(const h of cardItems()){const it=S.cfg.items[h];if(it.desc)src.add(it.desc);if(s){const gi=groupIdx(it,levelOf(s,h));if(gi>=0&&it.groups[gi].guide)src.add(it.groups[gi].guide)}else it.groups.forEach(g=>{if(g.guide)src.add(g.guide)})}
+  const out=[];for(const g of src){const G=g.replace(/\s+/g,'');for(let i=0;i+n<=G.length;i++){const w=G.slice(i,i+n);if(T.includes(w)){out.push('「'+g.slice(0,20)+(g.length>20?'…':'')+'」');break}}}return out}
 const EXAG=['압도적','완벽','교사에 버금','교사 못지','천재','독보적','최고의','전교','누구보다','타의 추종','유일하게','모든 면에서'];
 function qcheck(t,s){const out=[];t=String(t||'').trim();if(!t)return out;
   const ex=EXAG.filter(w=>t.includes(w));if(ex.length)out.push('과장 의심: '+ex.join(', '));
   const nd=[...t.matchAll(/(\S*)(함|됨|임)\s+(?=[가-힣0-9])/g)].map(m=>m[1]+m[2]).filter(w=>!/^(포함|함함)$/.test(w));if(nd.length)out.push('마침표 누락 의심: '+[...new Set(nd)].slice(0,3).join(', '));
   if(!/[.!?。]$/.test(t))out.push('끝 마침표 없음');
   const codes=new Set(S.probs.map(p=>String(p['코드']).trim()));const cm=[...new Set((t.match(/(?<!\d)\d{3}(?!\d)/g)||[]).filter(c=>codes.has(c)))];if(cm.length)out.push('문제 번호 노출: '+cm.join(', '));
+  const cp=guideCopies(t,s);if(cp.length)out.push('작성 지침 문구 옮김 의심: '+cp.join(' / '));
   if(s){const mine=new Set((s.pres||[]).map(x=>x.code)),wrong=S.probs.filter(p=>p['주제 구']&&!mine.has(String(p['코드']).trim())&&t.includes(p['주제 구'])).map(p=>p['코드']);if(wrong.length)out.push('발표하지 않은 문제 주제: '+wrong.join(', '))}
   return out}
 function pushHist(k,text,by){if(!String(text||'').trim())return;const e=ed(k);e.hist=e.hist||[];if(e.hist[0]?.text===text)return;
@@ -888,7 +901,7 @@ function restoreVer(i){const s=curS(),e=ed(s.key),h=e.hist?.[+i];if(!h)return;co
 function histSel(e){const H=e.hist||[];return H.length?`<select onchange="if(this.value!=='')restoreVer(this.value)" title="최종 세특이 바뀌기 전 상태 (최근 5개)"><option value="">↩ 이전 버전 (${H.length})</option>${H.map((h,i)=>`<option value="${i}">${esc(h.t)} · ${esc(h.by)} · ${bytes(h.text)}바이트</option>`).join('')}</select>`:''}
 function aiWrite(){const s=curS();if(!s)return;if(!card(s).length)return toast('사실 카드에 넣을 정보가 없습니다.');if(!needAI())return;
   UI.aimode='write';$('#ai-title').textContent='🤖 AI 세특 작성';$('#ai-olabel').textContent='보낼 사실 카드';$('#ai-tlabel').textContent='최대 바이트';
-  $('#ai-who').textContent=`${s.cls} ${s.name}`;const b=writeBody(s);$('#ai-orig').value=b.card+(b.ex?'\n\n[표현 강도 예시]\n'+b.ex:'');$('#ai-ob').textContent='';
+  $('#ai-who').textContent=`${s.cls} ${s.name}`;const b=writeBody(s),G=itemGuides();$('#ai-orig').value=(G.length?'[항목별 작성 지침]\n'+G.join('\n')+'\n\n':'')+studentBlock(b);$('#ai-ob').textContent='';
   $('#ai-req').value=S.cfg.ai.req||'';$('#ai-target').value=aiTarget().hi;$('#ai-res').value='';$('#ai-rb').textContent='';$('#ai-msg').textContent='';renderAIChip();$('#aimodal').classList.add('on')}
 
 /* ---------- ⑤ 내보내기·설정 ---------- */
